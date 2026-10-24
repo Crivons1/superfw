@@ -522,6 +522,14 @@ typedef struct {
 // +4: the unpacker can write one byte past the end.
 static uint32_t lang_blob[(LANG_BLOB_MAX + 4) / 4] __attribute__((section(".ewram")));
 
+// The unpacked pack stays in the scratch area, so switching languages is fast.
+// Anything else using the scratch area must call lang_scratch_used().
+static bool lang_unpacked = false;
+
+static void lang_scratch_used() {
+  lang_unpacked = false;
+}
+
 // Unpacks the strings of a language. Must be called before any text is shown
 // and every time lang_id changes. Shows "?" for every string if it fails.
 void lang_load(unsigned lang) {
@@ -537,9 +545,11 @@ void lang_load(unsigned lang) {
     const t_lang_pack_entry *e = &entries[lang];
     if (e->size >= MSG_COUNT * 2 && e->size <= LANG_BLOB_MAX && !(e->offset & 3) &&
         e->offset + e->size <= hdr->rawsize) {
-      // Unpack all the languages to the scratch area, keep only this one.
-      unsigned n = upkr_unpack16(sdr_state->scratch, (const uint8_t*)&entries[hdr->nlangs]);
-      if (n >= hdr->rawsize) {
+      // Unpack all the languages to the scratch area (unless they are still
+      // there), keep only this one.
+      if (!lang_unpacked)
+        lang_unpacked = upkr_unpack16(sdr_state->scratch, (const uint8_t*)&entries[hdr->nlangs]) >= hdr->rawsize;
+      if (lang_unpacked) {
         memcpy32(lang_blob, &sdr_state->scratch[e->offset], ROUND_UP2(e->size, 4));
         blobsize = e->size;
       }
@@ -2972,6 +2982,7 @@ int movedir_up() {
 
 void start_flash_update(const char *fn, unsigned fwsize, bool validate_superfw) {
   // We read the file into SDRAM, apply the update from there.
+  lang_scratch_used();
   FIL fd;
   FRESULT res = f_open(&fd, fn, FA_READ);
   if (res != FR_OK)
@@ -3364,6 +3375,7 @@ static void keypress_popup_norwrite(unsigned newkeys) {
         flashmgr_allocate_blocks(ne.blkmap, blkcnt, (t_reg_entry*)&sdr_state->nordata);
 
         // Go ahead and start the flasher-loader with patching support.
+        lang_scratch_used();
         unsigned errc = flash_gba_nor(info->romfn, info->romfs, &info->romh, p,
                                       info->use_dsaving, info->ingame_menu_enabled,
                                       info->rtc_patch_enabled,
