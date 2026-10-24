@@ -149,6 +149,22 @@ def cover_bytes(img):
   hdr = struct.pack("<IBBBBH6x", COVER_MAGIC, COVER_VERSION, BIG, SMALL, 0, tint_color(img))
   return hdr + convert(img, BIG) + convert(img, SMALL)
 
+PNG_KEEP = (b"IHDR", b"PLTE", b"tRNS", b"IDAT", b"IEND")
+
+def open_image(data):
+  # Opens image bytes. PNGs keep only the chunks needed for the picture: some
+  # box arts have broken optional chunks (ie. iCCP with a bad CRC) that make
+  # Pillow reject the whole file, while browsers just ignore them.
+  if data[:8] == b"\x89PNG\r\n\x1a\n":
+    out, i = bytearray(data[:8]), 8
+    while i + 8 <= len(data):
+      n, cid = struct.unpack(">I4s", data[i:i + 8])
+      if cid in PNG_KEEP:
+        out += data[i:i + 12 + n]
+      i += 12 + n
+    data = bytes(out)
+  return Image.open(io.BytesIO(data))
+
 def read_cover(data):
   # Decodes a .cov file: returns (big, small, tint). Images are palette index
   # bytes, tint is BGR555 or None. Mirrors cover_header_check() in the firmware.
@@ -276,7 +292,7 @@ class ThumbIndex:
       target = data.decode("utf-8").strip()
       path = os.path.normpath(os.path.join(os.path.dirname(path), target)).replace("\\", "/")
       data = http_get(THUMBS_RAW % (repo, urllib.parse.quote(path)))
-    return Image.open(io.BytesIO(data))
+    return open_image(data)
 
 # ---- Exact identification (No-Intro DATs) ------------------------------------
 
@@ -466,7 +482,8 @@ def main():
     img, source = None, None
     try:
       if local:
-        img, source = Image.open(local), local
+        with open(local, "rb") as fd:
+          img, source = open_image(fd.read()), local
       elif not args.no_download:
         repo = SYSTEMS[ext]
         m, how = None, None
