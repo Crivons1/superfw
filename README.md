@@ -52,12 +52,17 @@ Carousel (cover art) tab
 ------------------------
 
 The carousel tab (the icon after the SD/NOR browsers) shows the games in the
-folder currently open in the SD browser as a row of box art covers. Use
-Left/Right to move between games, Up/Down to jump to the previous/next letter
-and A to open the game (same load options as the browser). L/R switch tabs.
+folder currently open in the SD browser, and in all its subfolders, as a row
+of box art covers sorted by name. Use Left/Right to move between games, Up/Down
+to jump to the previous/next letter and A to open the game (same load options
+as the browser). L/R switch tabs. The bottom bar shows the selected game's
+folder. SuperFW starts on the carousel by default (whole card, since the
+browser starts at the root); change it in UI settings, "Start tab".
 
 Covers are read from `/.superfw/covers/<rom file name>.cov` (for example
-`Metroid Fusion (USA).gba.cov`). Games without a cover show a plain card. To
+`Metroid Fusion (USA).gba.cov`) or, for GBA games, from
+`/.superfw/covers/<game code>.cov` (for example `AMTE.cov`), which keeps
+working after renaming the ROM. Games without a cover show a plain card. To
 create the covers, run the PC tool with the SD card inserted (needs Python 3
 and Pillow, `pip install pillow`):
 
@@ -73,6 +78,7 @@ the SD card root and double-click (it then works on its own folder):
 
     pip install pyinstaller pillow
     pyinstaller --onefile --console --name make-covers tools/make-covers.py
+
 `tools/carousel-preview.py` renders a PC preview of the tab.
 
 ROM patching

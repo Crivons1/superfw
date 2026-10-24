@@ -346,7 +346,7 @@ static struct {
     int selector;                 // Selected game
     int count;                    // Number of games in the list
     bool truncated;               // Too many games, the list is incomplete
-    bool scan_pending;            // "Looking for games" was shown, scan next frame
+    unsigned scan_frame;          // Frame "Looking for games" was shown (0: not shown)
     int offset;                   // Slide animation offset (pixels, even)
     unsigned lastframe;           // Frame count at the last render
     unsigned browser_gen;         // Browser list generation it was built from
@@ -2250,7 +2250,7 @@ static void carousel_rebuild() {
     smenu.carousel.slot_state[i] = CoverNotLoaded;
   }
   smenu.carousel.browser_gen = browser_gen;
-  smenu.carousel.scan_pending = false;
+  smenu.carousel.scan_frame = 0;
 }
 
 // Opens a game's cover: /.superfw/covers/<rom file name>.cov, or for GBA ROMs
@@ -2385,9 +2385,10 @@ void render_carousel(volatile uint8_t *frame) {
   dma_memset16(&frame[240*144], dup8(FG_COLOR), 240*16/2);
 
   if (smenu.carousel.browser_gen != browser_gen) {
-    if (!smenu.carousel.scan_pending) {
-      // Show a message on this frame, scan on the next one (it can take a bit).
-      smenu.carousel.scan_pending = true;
+    // Show a message first, then scan on the next frame (it can take a bit).
+    // If the message was shown a while ago (tab switched away), show it again.
+    if (!smenu.carousel.scan_frame || frame_count - smenu.carousel.scan_frame > 4) {
+      smenu.carousel.scan_frame = frame_count ? frame_count : 1;
       draw_text_leftovf(smenu.browser.cpath, frame, 8, 144, SCREEN_WIDTH - 8);
       draw_central_text(msgs[lang_id][MSG_CAR_SCAN], frame, SCREEN_WIDTH / 2, 64);
       return;
