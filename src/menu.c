@@ -2751,9 +2751,11 @@ static void carousel_blit_scaled(volatile uint8_t *frame, const uint8_t *src, in
   if (x1 <= x0)
     return;
 
-  uint8_t xmap[COVER_BIG];
+  // One extra entry: pixels are drawn in pairs, an odd width reads xmap[size].
+  uint8_t xmap[COVER_BIG + 1];
   for (int x = 0; x < size; x++)
     xmap[x] = x * COVER_BIG / size;
+  xmap[size] = xmap[size - 1];
 
   for (int y = 0; y < size; y++) {
     uint32_t row[COVER_BIG / 4];
@@ -2762,6 +2764,7 @@ static void carousel_blit_scaled(volatile uint8_t *frame, const uint8_t *src, in
     const uint8_t *r = (uint8_t*)row;
     for (int x = x0; x < x1; x += 2)
       out[(x - x0) / 2] = r[xmap[x]] | (r[xmap[x + 1]] << 8);
+    // cppcheck-suppress uninitvar ; every pair copied is written just above
     dma_memcpy16(&frame[(top + y) * SCREEN_WIDTH + left + x0], out, (x1 - x0) / 2);
   }
 }
@@ -4162,7 +4165,7 @@ static void keypress_menu_tools(unsigned newkeys) {
       slowsd = use_slowld;
       int ret = sdbench_read(loadrom_progress_abort);
       slowsd = true;
-      if (ret < 0)
+      if (ret <= 0)
         spop.alert_msg = msgs[lang_id][MSG_ERR_GENERIC];
       else {
         unsigned speed = 8*1024*1024 / (unsigned)ret;

@@ -24,6 +24,9 @@ KNOWN_ASM = {
   "upkr_unpack16": 384 + 48,    # Probability table + saved registers
   "upkr_unpack": 384 + 48,
 }
+# Functions whose indirect calls only reach assembly routines (UNKNOWN_FUNC):
+# the SD driver picks sc_read/write_sectors_w0/w1 (supercard_io.S) from a table.
+ASM_INDIRECT = {"sdcard_read_blocks", "sdcard_write_blocks"}
 
 NODE_RE = re.compile(r'node:\s*\{\s*title:\s*"([^"]+)"\s*label:\s*"([^"]*)"')
 EDGE_RE = re.compile(r'edge:\s*\{\s*sourcename:\s*"([^"]+)"\s*targetname:\s*"([^"]+)"')
@@ -82,7 +85,9 @@ def main():
       warnings.add("dynamic stack frame: %s (%s)" % (plain(t), kind))
     best = (0, [])
     for dst in edges.get(t, []):
-      if "indirect" in dst:
+      if "indirect" in dst and plain(t) in ASM_INDIRECT:
+        cand = (UNKNOWN_FUNC, ["<indirect call to assembly>"])
+      elif "indirect" in dst:
         cand = (indirect_cost, ["<indirect call>"])
       else:
         r = resolve(dst)
