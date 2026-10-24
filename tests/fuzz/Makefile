@@ -8,7 +8,8 @@ FUZZTIME ?= 45
 SRC = ../../src
 CFLAGS = -g -O1 -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=undefined \
          -I$(SRC) -I../.. -ffunction-sections -fdata-sections -Wl,--gc-sections \
-         -Wno-unused-function -Wno-unused-parameter
+         -Wno-unused-function -Wno-unused-parameter \
+         -Wno-gnu-variable-sized-type-not-at-end
 COMMON = stubs.c $(SRC)/util.c $(SRC)/nanoprintf.c $(SRC)/fileutil.c
 
 TARGETS = fuzz_cheats fuzz_recent fuzz_patch fuzz_flashmgr fuzz_settings fuzz_text
@@ -21,7 +22,7 @@ fuzz_cheats: fuzz_cheats.c $(COMMON) $(SRC)/cheats.c
 fuzz_recent: fuzz_recent.c $(COMMON) $(SRC)/recent.c
 	$(CC) $(CFLAGS) -o $@ $^
 
-fuzz_patch: fuzz_patch.c $(COMMON) $(SRC)/patchengine.c $(SRC)/patcher.c
+fuzz_patch: fuzz_patch.c patches_stubs.c $(COMMON) $(SRC)/patchengine.c $(SRC)/patcher.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 fuzz_flashmgr: fuzz_flashmgr.c $(COMMON) $(SRC)/flash_mgr.c
