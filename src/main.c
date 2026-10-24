@@ -100,10 +100,13 @@ void init_sdcard_and_mount() {
 void check_pending_saves() {
   // Check if there's a pending save in the SRAM, and dump it.
   // TODO: add some key combo to skip this?
-  if (FR_OK == f_stat(PENDING_SAVE_FILEPATH, NULL)) {
+  FRESULT pst = f_stat(PENDING_SAVE_FILEPATH, NULL);
+  WRITE_LOG("Boot: pending-save.txt stat=%d (0 = exists, 4 = no file)", (int)pst);
+  if (FR_OK == pst) {
     display_info_msg("Writing previous savegame ...");
 
     unsigned ecode = flush_pending_sram();
+    WRITE_LOG("Boot: flushed the pending save, result %u", ecode);
     if (ecode == ERR_SAVE_FLUSH_WRITEFAIL) {
       // Display error messages briefly if any
       display_info_clear();

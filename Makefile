@@ -40,6 +40,9 @@ endif
 
 FWBINFILES=firmware.ewram.gba res/patches.db res/fonts.pack
 
+# Debug build for issue #77 (branch debug-77): log to the SD card.
+ENABLE_DISK_LOGGING := 1
+
 ifeq ($(ENABLE_DISK_LOGGING),1)
   PAYLOADFLAGS += -DENABLE_DISK_LOGGING
 endif
@@ -81,7 +84,7 @@ CFLAGS=-O2 -ggdb \
        -Wall -Isrc -I. -mthumb -flto -flto-partition=none
 
 
-INGAME_CFLAGS=-Os -ggdb \
+INGAME_CFLAGS=-Os -ggdb -DIGM_DEBUG_LOG \
               $(BASEFLAGS) \
               -DNO_SUPERCARD_INIT \
               -DSD_PREERASE_BLOCKS_WRITE \

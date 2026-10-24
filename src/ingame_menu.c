@@ -776,6 +776,29 @@ typedef void(*menu_key_fn)(uint16_t keyp);
 typedef bool(*menu_action_fn)();
 typedef unsigned (*menu_getoptcnt_fn)();
 
+#ifdef IGM_DEBUG_LOG
+// Debug build for issue #77: appends a line to /superfw-igm-log.txt.
+static void igm_log(const char *line) {
+  FIL f;
+  UINT wr;
+  if (FR_OK != f_open(&f, "/superfw-igm-log.txt", FA_OPEN_APPEND | FA_WRITE))
+    return;
+  f_write(&f, line, strlen(line), &wr);
+  f_write(&f, "
+", 2, &wr);
+  f_close(&f);
+}
+
+static void igm_log_pending(const char *what) {
+  FILINFO fi;
+  char tmp[200];
+  FRESULT st = f_stat(PENDING_SAVE_FILEPATH, &fi);
+  npf_snprintf(tmp, sizeof(tmp), "%s: pending-save.txt stat=%d size=%u, save pattern '%s'",
+               what, (int)st, st == FR_OK ? (unsigned)fi.fsize : 0, savefile_pattern);
+  igm_log(tmp);
+}
+#endif
+
 bool action_resume_game() {
   return true;
 }
@@ -785,12 +808,27 @@ bool action_reset_game() {
   return false;
 }
 bool action_reset_fw() {
+#ifdef IGM_DEBUG_LOG
+  igm_log_pending("Reset to menu");
+#endif
   reset_fw();
   return false;
 }
 bool action_reset_fw_nosave() {
   // Skip saving on reboot!
+#ifdef IGM_DEBUG_LOG
+  igm_log_pending("Skip save, before");
+  bool dump_ok = program_sram_dump(NULL, 0);
+  {
+    char tmp[120];
+    FRESULT again = f_unlink(PENDING_SAVE_FILEPATH);   // FR_NO_FILE (4) if it is gone
+    npf_snprintf(tmp, sizeof(tmp), "Skip save: program_sram_dump=%d, unlink again=%d", dump_ok, (int)again);
+    igm_log(tmp);
+  }
+  igm_log_pending("Skip save, after");
+#else
   program_sram_dump(NULL, 0);
+#endif
   // Go ahead and reboot to flash.
   reset_fw();
   return false;
