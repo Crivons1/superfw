@@ -80,6 +80,7 @@ en_strings = [
   "MSG_CAR_UPDATE":  "Updating game list...",
   "MSG_CAR_SAVE":    "Save",
   "MSG_CAR_LAST":    "Last played",
+  "MSG_CAR_FLASH":   "Flash",
 
   "MSG_UIS_THEME": "Theme color",
   "MSG_UIS_LANG":  "Language",

@@ -359,6 +359,7 @@ static struct {
     int info_for;                 // Game the info below was computed for (-1: none)
     bool info_save;               // It has a save file
     bool info_last;               // It is the last played game
+    bool info_flash;              // It was written to flash (A starts it from there)
     unsigned letter_until;        // Show the big letter until this frame
     char letter[8];               // Letter shown on Up/Down jumps (utf-8)
   } carousel;
@@ -1306,6 +1307,8 @@ static void flashbrowser_reload() {
 
   smenu.fbrowser.maxentries = sdr_state->nordata.gamecnt;
   heapsort4(sdr_state->nordata.games, smenu.fbrowser.maxentries, sizeof(t_flash_game_entry) / sizeof(uint32_t), romsort);
+
+  smenu.carousel.info_for = -1;    // Its "in flash" info may have changed
   #endif
 }
 
@@ -2208,6 +2211,24 @@ static bool carousel_fullpath(int n, char out[MAX_FN_LEN]) {
   return path_join(out, smenu.carousel.root, rel, "");
 }
 
+#ifdef SUPPORT_NORGAMES
+// The flash (NOR) copy of a game: flash entries keep the path of the SD file
+// they were written from. NULL if the game is not in flash (or the SD file
+// was renamed/moved since, then it just loads from SD).
+static const t_flash_game_entry *carousel_nor_entry(int n) {
+  char path[MAX_FN_LEN];
+  if (!carousel_fullpath(n, path))
+    return NULL;
+  const unsigned cnt = MIN(sdr_state->nordata.gamecnt, FLASHG_MAXFN_CNT);
+  for (unsigned i = 0; i < cnt; i++) {
+    const t_flash_game_entry *e = &sdr_state->nordata.games[i];
+    if (!strncmp(e->game_name, path, sizeof(e->game_name)))
+      return e;
+  }
+  return NULL;
+}
+#endif
+
 // Finds a game by its full path. Returns -1 if it is not in the list.
 static int carousel_find(const char *fullpath) {
   const unsigned rootlen = strlen(smenu.carousel.root);
@@ -2412,14 +2433,11 @@ static void carousel_pick_start(const char *prevpath) {
       sel = carousel_find(path);
   }
 
-  for (int i = 0; sel < 0 && i < smenu.recent.maxentries; i++) {
-    const t_rentry *r = &sdr_state->rentries[i];
-    if (r->flags == FLAG_RECENT_SD) {
-      char path[MAX_FN_LEN];
-      carousel_copy(r->fpath, path);
-      sel = carousel_find(path);
-      break;      // Only the last played game
-    }
+  // The last played game (games started from flash also hold their SD path).
+  if (sel < 0 && smenu.recent.maxentries) {
+    char path[MAX_FN_LEN];
+    carousel_copy(sdr_state->rentries[0].fpath, path);
+    sel = carousel_find(path);
   }
 
   smenu.carousel.selector = MAX(sel, 0);
@@ -2553,20 +2571,20 @@ static void carousel_update_info() {
 
   char path[MAX_FN_LEN], savefn[MAX_FN_LEN];
   smenu.carousel.info_for = sel;
-  smenu.carousel.info_save = smenu.carousel.info_last = false;
+  smenu.carousel.info_save = smenu.carousel.info_last = smenu.carousel.info_flash = false;
   if (!carousel_fullpath(sel, path) || !rom_path_ok(path))
     return;
 
   sram_filename_calc(path, savefn, save_path_default);
   smenu.carousel.info_save = check_file_exists(savefn);
 
-  for (int i = 0; i < smenu.recent.maxentries; i++) {
-    const t_rentry *r = &sdr_state->rentries[i];
-    if (r->flags == FLAG_RECENT_SD) {
-      smenu.carousel.info_last = !strncmp(r->fpath, path, MAX_FN_LEN);
-      break;
-    }
-  }
+  // Recent entries of games started from flash also hold their SD file path.
+  if (smenu.recent.maxentries)
+    smenu.carousel.info_last = !strncmp(sdr_state->rentries[0].fpath, path, MAX_FN_LEN);
+
+  #ifdef SUPPORT_NORGAMES
+  smenu.carousel.info_flash = carousel_nor_entry(sel) != NULL;
+  #endif
 }
 
 // Background color: the theme's, tinted with the selected cover's color.
@@ -2760,21 +2778,23 @@ void render_carousel(volatile uint8_t *frame) {
   else
     draw_text_ovf_rotate(title, frame, 8, 105, SCREEN_WIDTH - 16, &smenu.anim_state);
 
-  char ext[8] = {0}, szstr[16], info[96];
+  char ext[8] = {0}, szstr[16], info[160];
   const char *fext = find_extension(fname);
   for (unsigned i = 0; fext && fext[i] && i < sizeof(ext) - 1; i++)
     ext[i] = (fext[i] >= 'a' && fext[i] <= 'z') ? fext[i] - 'a' + 'A' : fext[i];
   human_size(szstr, sizeof(szstr), carousel_game(smenu.carousel.selector)->filesize);
   npf_snprintf(info, sizeof(info), "%s \xc2\xb7 %s", ext, szstr);
   if (smenu.carousel.info_for == smenu.carousel.selector) {
-    if (smenu.carousel.info_save) {
-      strcat(info, " \xc2\xb7 ");
-      strcat(info, msgs[lang_id][MSG_CAR_SAVE]);
-    }
-    if (smenu.carousel.info_last) {
-      strcat(info, " \xc2\xb7 ");
-      strcat(info, msgs[lang_id][MSG_CAR_LAST]);
-    }
+    const char *tags[] = {
+      smenu.carousel.info_save  ? msgs[lang_id][MSG_CAR_SAVE]  : NULL,
+      smenu.carousel.info_last  ? msgs[lang_id][MSG_CAR_LAST]  : NULL,
+      smenu.carousel.info_flash ? msgs[lang_id][MSG_CAR_FLASH] : NULL,
+    };
+    for (unsigned i = 0; i < ARRAY_SIZE(tags); i++)
+      if (tags[i] && strlen(info) + strlen(tags[i]) + 4 < sizeof(info)) {
+        strcat(info, " \xc2\xb7 ");
+        strcat(info, tags[i]);
+      }
   }
   draw_central_text_ovf(info, frame, SCREEN_WIDTH / 2, 122, SCREEN_WIDTH - 16);
 
@@ -4076,7 +4096,16 @@ static void keypress_menu_carousel(unsigned newkeys) {
   else if (newkeys & (KEY_BUTTLEFT | KEY_BUTTRIGHT))
     smenu.carousel.letter_until = frame_count;    // Hide the letter when moving
 
-  if (newkeys & KEY_BUTTA) {
+  // A: start the game (from flash if it was written there), Select: always
+  // load it from the SD card.
+  if (newkeys & (KEY_BUTTA | KEY_BUTTSEL)) {
+    #ifdef SUPPORT_NORGAMES
+    const t_flash_game_entry *fe = (newkeys & KEY_BUTTA) ? carousel_nor_entry(sel) : NULL;
+    if (fe) {
+      browser_open_nor(fe);
+      return;
+    }
+    #endif
     char path[MAX_FN_LEN];
     if (carousel_fullpath(sel, path))
       browser_open(path, carousel_game(sel)->filesize);

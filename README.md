@@ -57,11 +57,14 @@ of box art covers sorted by name:
 
  - Left/Right: previous/next game (covers slide and zoom in/out).
  - Up/Down: jump to the previous/next letter (shown big for a moment).
- - A: open the game (same load options as the browser). L/R switch tabs.
+ - A: open the game (same load options as the browser). If the game was
+   written to the flash (SuperChis) from this SD file, it starts from flash.
+ - Select: always load the game from the SD card. L/R switch tabs.
 
 The background takes the color of the selected cover. Below the title it shows
-the system, the size, whether there is a save file and whether it is the last
-played game, plus a bar with the position in the list. The bottom bar shows
+the system, the size, whether there is a save file, whether it is the last
+played game and whether it is in flash, plus a bar with the position in the
+list. The bottom bar shows
 the game's folder. SuperFW starts on the carousel by default, at the last
 played game (change it in UI settings, "Start tab").
 
