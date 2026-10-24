@@ -267,6 +267,17 @@ class ThumbIndex:
       return idx[close[0]][0] + (score,)
     return None
 
+  def download(self, repo, path, is_symlink):
+    data = http_get(THUMBS_RAW % (repo, urllib.parse.quote(path)))
+    # Symlinks are served as a text file containing the relative target.
+    for _ in range(4):
+      if data[:8] == b"\x89PNG\r\n\x1a\n" or not is_symlink:
+        break
+      target = data.decode("utf-8").strip()
+      path = os.path.normpath(os.path.join(os.path.dirname(path), target)).replace("\\", "/")
+      data = http_get(THUMBS_RAW % (repo, urllib.parse.quote(path)))
+    return Image.open(io.BytesIO(data))
+
 # ---- Exact identification (No-Intro DATs) ------------------------------------
 
 NOINTRO_DAT = "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat/no-intro/%s.dat"
@@ -360,17 +371,6 @@ class NoIntro:
       names = sorted(byserial[gamecode], key=lambda n: (region_rank(n), len(n)))
       return names[0], "game code"
     return None, None
-
-  def download(self, repo, path, is_symlink):
-    data = http_get(THUMBS_RAW % (repo, urllib.parse.quote(path)))
-    # Symlinks are served as a text file containing the relative target.
-    for _ in range(4):
-      if data[:8] == b"\x89PNG\r\n\x1a\n" or not is_symlink:
-        break
-      target = data.decode("utf-8").strip()
-      path = os.path.normpath(os.path.join(os.path.dirname(path), target)).replace("\\", "/")
-      data = http_get(THUMBS_RAW % (repo, urllib.parse.quote(path)))
-    return Image.open(io.BytesIO(data))
 
 # ---- Main ----------------------------------------------------------------
 

@@ -4,7 +4,7 @@
 # Tests for tools/make-covers.py and tools/carousel-preview.py (no network).
 # Run: python3 tests/make_covers_test.py
 
-import importlib.util, json, os, struct, sys, tempfile, unittest, zlib
+import importlib.util, io, json, os, struct, sys, tempfile, unittest, zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.join(os.path.dirname(HERE), "tools")
@@ -154,6 +154,68 @@ class Identify(unittest.TestCase):
     self.ni.save()
     again = mc.NoIntro(self.tmp.name)
     self.assertIn(os.path.abspath(self.gba), again.crcs)
+
+def png_bytes(color):
+  buf = io.BytesIO()
+  Image.new("RGB", (40, 40), color).save(buf, "PNG")
+  return buf.getvalue()
+
+class EndToEnd(unittest.TestCase):
+  # Runs the whole tool on a fake SD card with the network replaced.
+  def setUp(self):
+    self.tmp = tempfile.TemporaryDirectory()
+    self.sd = os.path.join(self.tmp.name, "sd")
+    self.cache = os.path.join(self.tmp.name, "cache")
+    os.makedirs(os.path.join(self.sd, "GBA", "Sub"))
+    os.makedirs(self.cache)
+    gba_rom(os.path.join(self.sd, "GBA", "Sub", "renamed rom.gba"), "AMTE")
+    with open(os.path.join(self.sd, "GBA", "Pokemon Ruby.gba"), "wb") as fd:
+      fd.write(b"\0" * 64)
+    repo = mc.SYSTEMS["gba"]
+    tree = [["Named_Boxarts/%s.png" % n, "100644"] for n in BOXARTS]
+    tree.append(["Named_Boxarts/Linked (USA).png", "120000"])
+    with open(os.path.join(self.cache, repo + ".json"), "w", encoding="utf-8") as fd:
+      json.dump(tree, fd)
+    with open(os.path.join(self.cache, "nointro-%s.dat" % repo), "w", encoding="utf-8") as fd:
+      fd.write(DAT % (1, 2))
+    self.requests = []
+    def fake_get(url, retries=3):
+      self.requests.append(url)
+      if "Linked" in url:
+        return b"Metroid Fusion (USA).png"      # Symlinks are served as text
+      return png_bytes((200, 40, 40))
+    self.real_get, mc.http_get = mc.http_get, fake_get
+
+  def tearDown(self):
+    mc.http_get = self.real_get
+    self.tmp.cleanup()
+
+  def run_tool(self, *extra):
+    argv = sys.argv
+    sys.argv = ["make-covers.py", self.sd, "--cache", self.cache] + list(extra)
+    try:
+      mc.main()
+    finally:
+      sys.argv = argv
+    return sorted(os.listdir(os.path.join(self.sd, mc.COVERS_DIR)))
+
+  def test_covers_written(self):
+    covers = self.run_tool()
+    # GBA game code cover for the identified ROM, file name cover for the other.
+    self.assertEqual(covers, ["AMTE.cov", "Pokemon Ruby.gba.cov"])
+    for c in covers:
+      with open(os.path.join(self.sd, mc.COVERS_DIR, c), "rb") as fd:
+        big, small, tint = mc.read_cover(fd.read())
+      self.assertIsNotNone(tint)
+    # Already present covers are skipped on the next run.
+    n = len(self.requests)
+    self.run_tool()
+    self.assertEqual(len(self.requests), n)
+
+  def test_symlink(self):
+    img = mc.ThumbIndex(self.cache).download(mc.SYSTEMS["gba"], "Named_Boxarts/Linked (USA).png", True)
+    self.assertEqual(img.size, (40, 40))
+    self.assertTrue(self.requests[-1].endswith("Metroid%20Fusion%20%28USA%29.png"))
 
 class GameCode(unittest.TestCase):
   def test_codes(self):
