@@ -9,7 +9,10 @@
 # Cover images come from (in this order):
 #  1. --images DIR: an image named like the ROM, with or without the ROM
 #     extension (ie. "Metroid Fusion.png" or "Metroid Fusion.gba.png").
-#  2. The libretro-thumbnails box art collection (downloaded, matched by name).
+#  2. The libretro-thumbnails box art collection (downloaded). The ROM is
+#     identified exactly by its checksum (or GBA game code) using the No-Intro
+#     game lists, then the box art is looked up by that official name. If that
+#     fails, by the ROM file name.
 #
 # Cover file format (all little endian):
 #   uint32  magic "SFCV"
@@ -29,7 +32,7 @@
 #
 # Requires Pillow (pip install pillow).
 
-import argparse, difflib, io, json, os, re, struct, sys, time
+import argparse, difflib, io, json, os, re, struct, sys, time, zlib
 import urllib.parse, urllib.request
 
 try:
@@ -264,6 +267,100 @@ class ThumbIndex:
       return idx[close[0]][0] + (score,)
     return None
 
+# ---- Exact identification (No-Intro DATs) ------------------------------------
+
+NOINTRO_DAT = "https://raw.githubusercontent.com/libretro/libretro-database/master/metadat/no-intro/%s.dat"
+
+def parse_dat(text):
+  # clrmamepro DAT -> ({crc32: game name}, {serial: [game names]})
+  bycrc, byserial = {}, {}
+  for block in re.findall(r'^game \((.*?)^\)', text, re.M | re.S):
+    m = re.search(r'^\s*name "((?:[^"\\]|\\.)*)"', block, re.M)
+    if not m:
+      continue
+    name = m.group(1)
+    for crc in re.findall(r'\brom \(.*?\bcrc ([0-9A-Fa-f]{8})', block):
+      bycrc.setdefault(int(crc, 16), name)
+    s = re.search(r'^\s*serial "([^"]+)"', block, re.M)
+    if s:
+      byserial.setdefault(s.group(1), []).append(name)
+  return bycrc, byserial
+
+def rom_crcs(path):
+  # CRC32 of the whole file, plus the CRC32 without the header if it has an
+  # iNES (16 bytes) or copier (512 bytes) header: No-Intro DATs list ROMs
+  # without them for some systems.
+  with open(path, "rb") as fd:
+    first = fd.read(4)
+  skip = 16 if first == b"NES\x1a" else 512 if os.path.getsize(path) % 1024 == 512 else 0
+
+  crc_all = crc_body = pos = 0
+  with open(path, "rb") as fd:
+    while True:
+      chunk = fd.read(1 << 20)
+      if not chunk:
+        break
+      crc_all = zlib.crc32(chunk, crc_all)
+      if skip:
+        crc_body = zlib.crc32(chunk[max(0, skip - pos):], crc_body)
+      pos += len(chunk)
+  return [crc_all, crc_body] if skip else [crc_all]
+
+class NoIntro:
+  def __init__(self, cache_dir):
+    self.cache_dir = cache_dir
+    self.dats = {}
+    self.crcfn = os.path.join(cache_dir, "rom-crcs.json")
+    try:
+      with open(self.crcfn, "r", encoding="utf-8") as fd:
+        self.crcs = json.load(fd)
+    except (OSError, ValueError):
+      self.crcs = {}
+
+  def dat(self, repo):
+    if repo not in self.dats:
+      datname = repo.replace("_-_", " - ").replace("_", " ")
+      cachefn = os.path.join(self.cache_dir, "nointro-" + repo + ".dat")
+      if not (os.path.exists(cachefn) and time.time() - os.path.getmtime(cachefn) < 7 * 86400):
+        print("Downloading game list for %s ..." % datname)
+        data = http_get(NOINTRO_DAT % urllib.parse.quote(datname))
+        os.makedirs(self.cache_dir, exist_ok=True)
+        with open(cachefn, "wb") as fd:
+          fd.write(data)
+      with open(cachefn, "r", encoding="utf-8", errors="replace") as fd:
+        self.dats[repo] = parse_dat(fd.read())
+    return self.dats[repo]
+
+  def crcs_of(self, path):
+    # Reading big ROMs from an SD card is slow: remember them by size and date.
+    st = os.stat(path)
+    key = os.path.abspath(path)
+    c = self.crcs.get(key)
+    if c and c[0] == st.st_size and c[1] == int(st.st_mtime):
+      return c[2]
+    crcs = rom_crcs(path)
+    self.crcs[key] = [st.st_size, int(st.st_mtime), crcs]
+    return crcs
+
+  def save(self):
+    try:
+      os.makedirs(self.cache_dir, exist_ok=True)
+      with open(self.crcfn, "w", encoding="utf-8") as fd:
+        json.dump(self.crcs, fd)
+    except OSError:
+      pass
+
+  def identify(self, repo, path, gamecode=None):
+    # Returns (No-Intro name, how) or (None, None)
+    bycrc, byserial = self.dat(repo)
+    for crc in self.crcs_of(path):
+      if crc in bycrc:
+        return bycrc[crc], "checksum"
+    if gamecode and gamecode in byserial:
+      names = sorted(byserial[gamecode], key=lambda n: (region_rank(n), len(n)))
+      return names[0], "game code"
+    return None, None
+
   def download(self, repo, path, is_symlink):
     data = http_get(THUMBS_RAW % (repo, urllib.parse.quote(path)))
     # Symlinks are served as a text file containing the relative target.
@@ -328,6 +425,8 @@ def main():
   parser.add_argument("--no-download", action="store_true", help="Only use --images, do not download box art")
   parser.add_argument("--force", action="store_true", help="Regenerate covers that already exist")
   parser.add_argument("--dry-run", action="store_true", help="Only show what would be done")
+  parser.add_argument("--no-checksum", action="store_true",
+                      help="Do not identify ROMs by checksum (only by file name)")
   parser.add_argument("--cache", default=os.path.join(os.path.expanduser("~"), ".superfw-covers-cache"),
                       help="Where to cache the downloaded box art index")
   args = parser.parse_args()
@@ -339,6 +438,7 @@ def main():
 
   outdir = args.output or os.path.join(args.sdroot, COVERS_DIR)
   thumbs = ThumbIndex(args.cache)
+  nointro = NoIntro(args.cache)
 
   made, skipped, missing = 0, 0, []
   done = set()
@@ -368,12 +468,26 @@ def main():
       if local:
         img, source = Image.open(local), local
       elif not args.no_download:
-        m = thumbs.find(SYSTEMS[ext], romname)
+        repo = SYSTEMS[ext]
+        m, how = None, None
+        if not args.no_checksum:
+          try:
+            official, how = nointro.identify(repo, path, code)
+          except Exception as e:
+            print("  could not identify %s by checksum: %s" % (romname, e))
+            official = None
+          if official:
+            m = thumbs.find(repo, official + ".x")
+        if m:
+          how = "%s match" % how if m[3] >= 1.0 else "%s match, similar box art" % how
+        else:
+          m = thumbs.find(repo, romname)
+          how = "name match %d%%" % round(m[3] * 100) if m else None
         if m:
           name, tpath, islink, score = m
-          source = "%s (match %d%%)" % (name, round(score * 100))
+          source = "%s (%s)" % (name, how)
           if not args.dry_run:
-            img = thumbs.download(SYSTEMS[ext], tpath, islink)
+            img = thumbs.download(repo, tpath, islink)
     except Exception as e:
       print("  error getting cover for %s: %s" % (romname, e))
       img, source = None, None
@@ -394,6 +508,7 @@ def main():
       codes_used.add(code)
     made += 1
 
+  nointro.save()
   print()
   print("Covers %s: %d, already present: %d, not found: %d" %
         ("to make" if args.dry_run else "made", made, skipped, len(missing)))

@@ -4,7 +4,7 @@
 # Tests for tools/make-covers.py and tools/carousel-preview.py (no network).
 # Run: python3 tests/make_covers_test.py
 
-import importlib.util, json, os, struct, sys, tempfile, unittest
+import importlib.util, json, os, struct, sys, tempfile, unittest, zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.join(os.path.dirname(HERE), "tools")
@@ -88,6 +88,72 @@ class NameMatching(unittest.TestCase):
 
   def test_no_match(self):
     self.assertIsNone(self.match("My Homebrew Game.gba"))
+
+DAT = '''clrmamepro (
+\tname "Test"
+)
+
+game (
+\tname "Metroid Fusion (USA)"
+\tregion "USA"
+\tserial "AMTE"
+\trom ( name "Metroid Fusion (USA).gba" size 16 crc %08X md5 0 sha1 0 serial "AMTE" )
+)
+game (
+\tname "Metroid Fusion (Japan)"
+\tserial "AMTJ"
+\trom ( name "Metroid Fusion (Japan).gba" size 16 crc 00000001 serial "AMTJ" )
+)
+game (
+\tname "Some NES Game (USA)"
+\trom ( name "Some NES Game (USA).nes" size 32 crc %08X )
+)
+'''
+
+class Identify(unittest.TestCase):
+  def setUp(self):
+    self.tmp = tempfile.TemporaryDirectory()
+    self.gba = os.path.join(self.tmp.name, "renamed.gba")
+    with open(self.gba, "wb") as fd:
+      fd.write(b"0123456789abcdef")
+    self.nes_body = bytes(range(32))
+    self.nes = os.path.join(self.tmp.name, "game.nes")
+    with open(self.nes, "wb") as fd:
+      fd.write(b"NES\x1a" + bytes(12) + self.nes_body)   # 16 byte iNES header
+    text = DAT % (zlib.crc32(b"0123456789abcdef"), zlib.crc32(self.nes_body))
+    # Cached DATs (fresh), so nothing is downloaded.
+    for repo in ("GBA", "NES"):
+      with open(os.path.join(self.tmp.name, "nointro-%s.dat" % repo), "w", encoding="utf-8") as fd:
+        fd.write(text)
+    self.ni = mc.NoIntro(self.tmp.name)
+
+  def tearDown(self):
+    self.tmp.cleanup()
+
+  def test_parse(self):
+    bycrc, byserial = mc.parse_dat(DAT % (5, 6))
+    self.assertEqual(bycrc[5], "Metroid Fusion (USA)")
+    self.assertEqual(bycrc[1], "Metroid Fusion (Japan)")
+    self.assertEqual(bycrc[6], "Some NES Game (USA)")
+    self.assertEqual(byserial["AMTE"], ["Metroid Fusion (USA)"])
+
+  def test_by_checksum(self):
+    self.assertEqual(self.ni.identify("GBA", self.gba), ("Metroid Fusion (USA)", "checksum"))
+
+  def test_headerless_checksum(self):
+    self.assertEqual(self.ni.identify("NES", self.nes), ("Some NES Game (USA)", "checksum"))
+
+  def test_by_game_code(self):
+    with open(self.gba, "wb") as fd:
+      fd.write(b"modified rom....")
+    self.assertEqual(self.ni.identify("GBA", self.gba, "AMTJ"), ("Metroid Fusion (Japan)", "game code"))
+    self.assertEqual(self.ni.identify("GBA", self.gba, "ZZZZ"), (None, None))
+
+  def test_crc_cache(self):
+    self.ni.identify("GBA", self.gba)
+    self.ni.save()
+    again = mc.NoIntro(self.tmp.name)
+    self.assertIn(os.path.abspath(self.gba), again.crcs)
 
 class GameCode(unittest.TestCase):
   def test_codes(self):
