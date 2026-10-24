@@ -228,6 +228,8 @@ static void parse_settings(void *usr, const char *var, const char *value) {
 
 static void parse_ui_settings(void *usr, const char *var, const char *value) {
   if (!strcmp(var, "langcode")) {
+    if (!value[0] || !value[1])
+      return;     // Language codes are two letters
     uint16_t code = ((uint8_t)value[0]) | (((uint8_t)value[1]) << 8);
     lang_id = lang_lookup(code);
   } else {
