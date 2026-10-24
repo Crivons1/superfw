@@ -63,26 +63,49 @@ jobs:
             superfw-${{ matrix.board }}.dldi
             patches.db
 
+  # Fork releases (tags v<upstream>-carousel.<n>) also ship the cover maker.
+  cover-tool:
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: ./.github/workflows/make-covers.yml
+    secrets: inherit
+    permissions:
+      contents: write
+
   release:
-    needs: build-firmware
+    needs: [build-firmware, cover-tool]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-26.04
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           submodules: 'true'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: 'superfw-release-*'
           path: artifacts
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: 'make-covers-*'
+          path: covers
       - name: Create release and upload firmware
         run: |
-          gh release create "${GITHUB_REF#refs/tags/}" \
-            --title "Release ${GITHUB_REF#refs/tags/}" \
-            --notes-from-tag \
-            artifacts/**/*.fw
+          TAG="${GITHUB_REF#refs/tags/}"
+          mkdir -p files
+          cp artifacts/*/*.fw files/
+          for n in windows macos linux; do cp covers/make-covers-$n/* files/; done
+          (cd files && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          # Notes: this version's section of CHANGELOG.md, else the tag message.
+          awk -v t="## $TAG" '$0 == t {f=1; next} /^## /{f=0} f' CHANGELOG.md > notes.md
+          if [ -s notes.md ]; then
+            NOTES="--notes-file notes.md"
+          else
+            NOTES="--notes-from-tag"
+          fi
+          gh release create "$TAG" --title "SuperFW $TAG" $NOTES files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

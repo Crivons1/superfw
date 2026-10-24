@@ -18,6 +18,9 @@ the "Development notes"). These changes were sent upstream in
 https://github.com/davidgfnet/superfw/pull/109. The `carousel` branch is the
 build used day to day (it starts on the carousel by default),
 `upstream-carousel` is the same code as proposed upstream.
+Versioned builds (firmware for the three boards plus the cover maker) are on
+the [releases page](https://github.com/Crivons1/superfw/releases), what
+changed in each is in [CHANGELOG.md](CHANGELOG.md).
 
 
 Installation
