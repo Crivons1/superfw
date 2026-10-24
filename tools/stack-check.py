@@ -28,9 +28,12 @@ KNOWN_ASM = {
 # the SD driver picks sc_read/write_sectors_w0/w1 (supercard_io.S) from a table.
 ASM_INDIRECT = {"sdcard_read_blocks", "sdcard_write_blocks"}
 # Callers whose indirect calls only reach some callbacks: (caller name regex,
-# callback name regex). nanoprintf only calls its character output functions.
+# callback name regex). nanoprintf only calls its character output functions,
+# parse_file() the settings line parsers and heapsort4() the sort comparators.
 INDIRECT_TARGETS = [
   (re.compile(r"^npf_"), re.compile(r"putc")),
+  (re.compile(r"^parse_file$"), re.compile(r"^parse_")),
+  (re.compile(r"^heapsort4$"), re.compile(r"sort$")),
 ]
 
 NODE_RE = re.compile(r'node:\s*\{\s*title:\s*"([^"]+)"\s*label:\s*"([^"]*)"')
