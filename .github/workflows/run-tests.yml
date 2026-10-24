@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - name: Install dependencies
-        run: sudo apt-get install gcc lcov python3-pil
+        run: sudo apt-get install gcc g++ lcov python3-pil
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -20,6 +20,8 @@ jobs:
         run: cd tests && make
       - name: Run cover tool tests
         run: python3 tests/make_covers_test.py
+      - name: Run language pack tests
+        run: make upkr.elf && python3 tests/messages_test.py
       - name: Upload coverage report
         if: ${{ success() }}
         uses: actions/upload-artifact@v4
