@@ -784,8 +784,7 @@ static void igm_log(const char *line) {
   if (FR_OK != f_open(&f, "/superfw-igm-log.txt", FA_OPEN_APPEND | FA_WRITE))
     return;
   f_write(&f, line, strlen(line), &wr);
-  f_write(&f, "
-", 2, &wr);
+  f_write(&f, "\r\n", 2, &wr);
   f_close(&f);
 }
 
