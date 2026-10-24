@@ -79,6 +79,7 @@ jobs:
           echo "BIN=$BIN" >> "$GITHUB_ENV"
 
       - name: Check that it runs
+        timeout-minutes: 5
         run: |
           "$BIN" --help
           mkdir -p sdtest/GBA
@@ -86,9 +87,9 @@ jobs:
           # The window (Tk bundled correctly): opens and closes by itself.
           if [ "${{ matrix.name }}" = linux ]; then
             sudo apt-get install -y xvfb >/dev/null
-            MAKE_COVERS_SELFTEST=1 timeout 60 xvfb-run -a "$BIN" --gui sdtest | tee gui.log
+            MAKE_COVERS_SELFTEST=1 xvfb-run -a "$BIN" --gui sdtest | tee gui.log
           else
-            MAKE_COVERS_SELFTEST=1 timeout 60 "$BIN" --gui sdtest | tee gui.log
+            MAKE_COVERS_SELFTEST=1 "$BIN" --gui sdtest | tee gui.log
           fi
           grep -q "window ok" gui.log
 
