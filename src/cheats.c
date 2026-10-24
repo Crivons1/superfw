@@ -158,8 +158,16 @@ int open_read_cheats(uint8_t *buffer, unsigned buffsize, const char *fn) {
 
       // Fill entry, string or cheat codes.
       if (parse_name) {
-        // Fill title and header.
-        strcpy(chdr.title, s);
+        // Fill title and header. Lines can be longer than the title buffer:
+        // truncate (without splitting an utf-8 character).
+        unsigned tlen = strlen(s);
+        if (tlen >= sizeof(chdr.title)) {
+          tlen = sizeof(chdr.title) - 1;
+          while (tlen && ((uint8_t)s[tlen] & 0xC0) == 0x80)
+            tlen--;
+        }
+        memcpy(chdr.title, s, tlen);
+        chdr.title[tlen] = 0;
         chdr.h.slen = (strlen(chdr.title) + 1 + 3) & ~3U;  // Word aligned!
         chdr.h.enabled = 0;
         chdr.h.codelen = 0;
@@ -189,8 +197,11 @@ int open_read_cheats(uint8_t *buffer, unsigned buffsize, const char *fn) {
       parse_name = !parse_name;
     }
 
-    // Consume bytes
+    // Consume bytes (the last line might not have a line break, then there
+    // is no separator to consume after it).
     unsigned cnt = strlen(tmp) + 1;
+    if (cnt > bcount)
+      cnt = bcount;
     memmove(&tmp[0], &tmp[cnt], bcount - cnt);
     bcount -= cnt;
   } while (bcount);

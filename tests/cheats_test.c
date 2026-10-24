@@ -70,6 +70,28 @@ int main() {
   assert(open_read_cheats(tmp, sizeof(tmp), "data/bad3.cht") < 0);
   assert(open_read_cheats(tmp, sizeof(tmp), "data/bad4.cht") < 0);
 
+  // Titles longer than the title buffer are truncated (not overflowed), and
+  // a multi-byte utf-8 character at the cut is dropped as a whole.
+  {
+    int lret = open_read_cheats(tmp, sizeof(tmp), "data/longtitle.cht");
+    assert(lret >= 0);
+    assert(*(uint32_t*)tmp == 1);
+    t_cheathdr *e = (t_cheathdr*)&tmp[4];
+    char want[256];
+    memset(want, 'A', 254);
+    want[254] = 0;
+    assert(!strcmp((char*)e->data, want));
+    assert(e->slen == ((254 + 1 + 3) & ~3U));
+  }
+
+  // A file whose last line has no line break.
+  {
+    int nret = open_read_cheats(tmp, sizeof(tmp), "data/nonewline.cht");
+    assert(nret >= 0);
+    assert(*(uint32_t*)tmp == 1);
+    assert(!strcmp((char*)((t_cheathdr*)&tmp[4])->data, "Last line without newline"));
+  }
+
   int ret = open_read_cheats(tmp, sizeof(tmp), "data/test.cht");
   assert(ret >= 0);
   assert(*(uint32_t*)tmp == sizeof(expected)/sizeof(expected[0]));
