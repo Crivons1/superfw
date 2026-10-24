@@ -9,6 +9,16 @@ for Windows, macOS and Linux.
 
 ## Unreleased
 
+- **Folders with short Chinese names** (or other names a non-US Windows
+  stored as 8.3 only) showed as "?" and could not be opened (upstream
+  issue #84). They open now; their names still show as symbols, the font
+  has no glyphs for those bytes read as code page 437.
+- **"Show extensions" setting** (UI settings, upstream issue #51): off hides
+  the file extensions in the SD browser, recent and flash lists.
+- **Save files have the game's save size** (32 KiB for SRAM games, 64/128
+  KiB for flash, 512 B / 8 KiB for EEPROM) instead of always 128 KiB, so they
+  work with emulators and other tools (upstream issue #39). Emulated games
+  and "write SRAM to this .sav" still write the whole 128 KiB.
 - The stack check is accurate now: it knows which functions the printf,
   settings parser and sort callbacks can reach. The worst case is 12.6 KB
   of the 16 KB stack (it showed 15.1 KB by over-counting).
