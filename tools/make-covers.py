@@ -226,11 +226,13 @@ class ThumbIndex:
       return idx[key][0] + (1.0,)
 
     # "Pokemon Ruby" -> "Pokemon - Ruby Version": shortest name that starts with it.
-    if len(key) >= 6:
-      longer = [k for k in idx if k.startswith(key) and len(k) - len(key) <= max(8, len(key) // 2)]
-      if longer:
-        best = min(longer, key=len)
-        return idx[best][0] + (len(key) / len(best),)
+    # "Legacy of Goku I & II" -> "2 Games in 1 - Legacy of Goku I & II": shortest that ends with it.
+    # Both kinds compete, the closest (shortest) name wins.
+    longer = [k for k in idx if len(k) - len(key) <= max(8, len(key) // 2) and
+              ((len(key) >= 6 and k.startswith(key)) or (len(key) >= 10 and k.endswith(key)))]
+    if longer:
+      best = min(longer, key=len)
+      return idx[best][0] + (len(key) / len(best),)
 
     close = difflib.get_close_matches(key, list(idx.keys()), n=1, cutoff=0.82)
     if close:
