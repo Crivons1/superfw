@@ -808,7 +808,14 @@ def gui(args):
     root.after(100, poll)
   poll()
 
-  hide_own_console()
+  if os.environ.get("MAKE_COVERS_SELFTEST"):
+    # Build check: the window opens, then closes by itself.
+    def selftest_done():
+      print("window ok")
+      root.destroy()
+    root.after(1500, selftest_done)
+  else:
+    hide_own_console()
   root.mainloop()
 
 def want_gui(argv):

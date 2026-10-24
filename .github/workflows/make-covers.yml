@@ -83,6 +83,14 @@ jobs:
           "$BIN" --help
           mkdir -p sdtest/GBA
           "$BIN" sdtest --no-download
+          # The window (Tk bundled correctly): opens and closes by itself.
+          if [ "${{ matrix.name }}" = linux ]; then
+            sudo apt-get install -y xvfb >/dev/null
+            MAKE_COVERS_SELFTEST=1 timeout 60 xvfb-run -a "$BIN" --gui sdtest | tee gui.log
+          else
+            MAKE_COVERS_SELFTEST=1 timeout 60 "$BIN" --gui sdtest | tee gui.log
+          fi
+          grep -q "window ok" gui.log
 
       - name: Package
         run: |
