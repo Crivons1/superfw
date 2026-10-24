@@ -10,6 +10,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include "fatfs/ff.h"
 #include "fatfs/diskio.h"
@@ -104,7 +105,36 @@ static void check_folder(const char *dirname11) {
   f_mount(NULL, "0:", 0);
 }
 
+// New files still get an upper case SFN (as stock FatFS writes it).
+static void check_create(void) {
+  make_volume("GAMES      ");
+  FATFS fs;
+  FIL f;
+  assert(f_mount(&fs, "0:", 1) == FR_OK);
+  assert(f_open(&f, "/caf\xC3\xA9.txt", FA_CREATE_NEW | FA_WRITE) == FR_OK);   // "café.txt"
+  f_close(&f);
+
+  // Find its SFN in the root dir: no lower case 'é' (0x82 in code page 437).
+  bool found = false;
+  for (unsigned i = 0; i < 224; i++) {
+    const uint8_t *e = &disk[19 * 512 + i * 32];
+    if (e[0] && e[11] != 0x0F && (e[11] & AM_ARC)) {
+      found = true;
+      for (unsigned j = 0; j < 11; j++)
+        assert(e[j] != 0x82);
+    }
+  }
+  assert(found);
+
+  assert(f_open(&f, "/caf\xC3\xA9.txt", FA_READ) == FR_OK);   // By its name
+  f_close(&f);
+  assert(f_open(&f, "/CAF\xC3\x89.TXT", FA_READ) == FR_OK);   // "CAFÉ.TXT": long names ignore case
+  f_close(&f);
+  f_mount(NULL, "0:", 0);
+}
+
 int main() {
+  check_create();
   // GBK "啊阿" (B0A1 B0A2): A1 and A2 are lower case letters in code page 437.
   check_folder("\xB0\xA1\xB0\xA2       ");
   // GBK "口袋妖怪" (BFDA B4FC D1FD B9D6): no such bytes, always worked.
