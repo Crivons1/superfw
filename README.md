@@ -122,12 +122,33 @@ To build one yourself:
     pip install pyinstaller pillow
     pyinstaller --onefile --console --name make-covers tools/make-covers.py
 
-Code signing of the .exe through the SignPath Foundation is prepared, see
-[docs/SIGNING.md](docs/SIGNING.md).
-
 `tools/carousel-preview.py` renders a PC preview of the tab. The carousel
 helpers (`src/carousel_util.c`) and both tools have tests: `make` in `tests/`
 and `python3 tests/make_covers_test.py`.
+
+Code signing policy
+-------------------
+
+Free code signing provided by [SignPath.io](https://about.signpath.io),
+certificate by [SignPath Foundation](https://signpath.org).
+
+ - What is signed: only `make-covers.exe`, built by GitHub Actions from
+   `tools/make-covers.py` in this repository
+   (`.github/workflows/make-covers.yml`). The firmware is not signed.
+ - Authors and reviewers: the members of this repository with write access
+   ([Crivons1](https://github.com/Crivons1)). Changes from anyone else are
+   reviewed by them before they are merged.
+ - Approvers (approve every signing request): the repository owner,
+   [Crivons1](https://github.com/Crivons1).
+ - Privacy: this program will not transfer any information to other networked
+   systems unless specifically requested by the user or the person installing
+   or operating it. When you run it, it downloads box art and game lists from
+   GitHub (api.github.com, raw.githubusercontent.com: the libretro-thumbnails
+   collection and the libretro No-Intro lists); it sends nothing about you or
+   your games. It installs nothing: delete the file to remove it.
+
+How it is set up: [docs/SIGNING.md](docs/SIGNING.md) (until SignPath approves
+the project the .exe is published unsigned).
 
 ROM patching
 ------------

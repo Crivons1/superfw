@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-3.0-or-later (like the rest of SuperFW)
 
 # Generates cover art files for the SuperFW carousel tab.
 #
@@ -45,6 +46,8 @@ try:
   from PIL import Image
 except ImportError:
   sys.exit("Pillow is required: pip install pillow")
+
+VERSION = "1.1.0"            # Of the tool (shown in the window and --version)
 
 COVER_MAGIC = 0x56434653
 COVER_VERSION = 2
@@ -474,6 +477,7 @@ def make_args(argv=None):
   parser.add_argument("--cache", default=os.path.join(os.path.expanduser("~"), ".superfw-covers-cache"),
                       help="Where to cache the downloaded box art index")
   parser.add_argument("--gui", action="store_true", help="Open the window (default when started without arguments)")
+  parser.add_argument("--version", action="version", version="make-covers " + VERSION)
   return parser, parser.parse_args(argv)
 
 def print_report(event, **kw):
@@ -645,7 +649,7 @@ def gui(args):
     except Exception:
       pass
   root = tk.Tk()
-  root.title("SuperFW cover maker")
+  root.title("SuperFW cover maker " + VERSION)
   import tkinter.font
   linesp = tkinter.font.nametofont("TkDefaultFont").metrics("linespace")
   ttk.Style(root).configure("Treeview", rowheight=int(linesp * 1.4))

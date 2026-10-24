@@ -100,12 +100,12 @@ jobs:
           (cd files && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
           # Notes: this version's section of CHANGELOG.md, else the tag message.
           awk -v t="## $TAG" '$0 == t {f=1; next} /^## /{f=0} f' CHANGELOG.md > notes.md
-          if [ -s notes.md ]; then
-            NOTES="--notes-file notes.md"
-          else
-            NOTES="--notes-from-tag"
+          if [ ! -s notes.md ]; then
+            git for-each-ref --format='%(contents)' "refs/tags/$TAG" > notes.md
           fi
-          gh release create "$TAG" --title "SuperFW $TAG" $NOTES files/*
+          echo >> notes.md
+          echo "[Code signing policy](https://github.com/$GITHUB_REPOSITORY#code-signing-policy) of the cover maker" >> notes.md
+          gh release create "$TAG" --title "SuperFW $TAG" --notes-file notes.md files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

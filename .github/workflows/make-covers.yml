@@ -66,7 +66,8 @@ jobs:
           python -c "import tkinter"     # The window needs it, PyInstaller bundles it
           case "${{ matrix.name }}" in
             windows)
-              python -m PyInstaller --onefile --console --name make-covers --exclude-module unittest tools/make-covers.py
+              python tools/exe-version-info.py version-info.txt
+              python -m PyInstaller --onefile --console --name make-covers --exclude-module unittest                 --version-file version-info.txt tools/make-covers.py
               BIN=dist/make-covers.exe ;;
             macos)
               python -m PyInstaller --windowed --name make-covers --exclude-module unittest \
@@ -77,6 +78,11 @@ jobs:
               BIN=dist/make-covers ;;
           esac
           echo "BIN=$BIN" >> "$GITHUB_ENV"
+
+      - name: Check the .exe details
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: (Get-Item dist/make-covers.exe).VersionInfo | Format-List ProductName,ProductVersion,FileDescription
 
       - name: Check that it runs
         timeout-minutes: 5
@@ -114,14 +120,16 @@ jobs:
       # and the SIGNPATH_* variables exist, see docs/SIGNING.md.
       - name: Sign the .exe (SignPath)
         if: env.SIGN == 'true'
-        uses: signpath/github-action-submit-signing-request@v1
+        uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
           github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
           wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600   # Time to approve it in SignPath
           output-artifact-directory: out
 
       - name: Upload final build
@@ -166,6 +174,8 @@ jobs:
               echo
             fi
             echo "SHA-256 checksums are in SHA256SUMS.txt."
+            echo
+            echo "[Code signing policy](https://github.com/${GH_REPO}#code-signing-policy)"
           } > notes.md
           gh release delete make-covers-latest --cleanup-tag --yes || true
           gh release create make-covers-latest files/* \
