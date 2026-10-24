@@ -146,6 +146,7 @@ bool write_save_sram(const char *fn, unsigned size) {
       tmpbuf[j] = sram_ptr[j];
     set_supercard_mode(MAPPED_SDRAM, true, true);
 
+    // cppcheck-suppress uninitvar ; the n bytes written are filled just above
     res = f_write(&fd, tmpbuf, n, &wrbytes);
     if (res != FR_OK || wrbytes != n) {
       f_close(&fd);
