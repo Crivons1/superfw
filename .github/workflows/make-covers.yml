@@ -24,6 +24,7 @@ on:
       - 'tools/make-covers.py'
       - 'tests/make_covers_test.py'
       - 'tools/carousel-preview.py'
+      - 'tools/exe-version-info.py'
       - '.github/workflows/make-covers.yml'
 
 permissions:
