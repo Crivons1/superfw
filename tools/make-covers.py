@@ -13,13 +13,15 @@
 #
 # Cover file format (all little endian):
 #   uint32  magic "SFCV"
-#   uint8   version (1)
+#   uint8   version (2)
 #   uint8   big size (80): selected cover, square
 #   uint8   small size (48): neighbour covers, square
 #   uint8   palette (0): fixed 6x6x6 color cube at palette index 20
-#   8 bytes reserved (zero)
+#   uint16  background tint (BGR555, bit 15 set if valid)
+#   6 bytes reserved (zero)
 #   big*big bytes, then small*small bytes: 8bpp palette indices, row-major.
-#   Index 17 is the menu background color (used for letterboxing).
+#   Index 236 is the carousel background color (used for letterboxing).
+#   (Version 1 files have no tint and use index 17, the menu background.)
 #
 # Usage:
 #   python make-covers.py E:\
@@ -36,10 +38,11 @@ except ImportError:
   sys.exit("Pillow is required: pip install pillow")
 
 COVER_MAGIC = 0x56434653
-COVER_VERSION = 1
+COVER_VERSION = 2
 BIG, SMALL = 80, 48
 PAL_BASE = 20
-BG_INDEX = 17
+BG_INDEX = 236
+TINT_VALID = 0x8000
 
 COVERS_DIR = os.path.join(".superfw", "covers")
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif")
@@ -120,14 +123,34 @@ def convert(img, size):
       out[i] = PAL_BASE + (p if p < 216 else 0)
   return bytes(out)
 
+def tint_color(img):
+  # Main color of a cover (BGR555 | TINT_VALID): the most common of its few
+  # dominant colors, preferring saturated ones over greys, black and white.
+  import colorsys
+  small = img.convert("RGBA").resize((32, 32), Image.BILINEAR)
+  rgb = Image.new("RGB", small.size, (0, 0, 0))
+  rgb.paste(small, mask=small.getchannel("A"))
+  q = rgb.quantize(colors=8)
+  pal = q.getpalette()
+  best, best_score = None, -1.0
+  for count, i in q.getcolors():
+    r, g, b = pal[i * 3:i * 3 + 3]
+    _, sat, val = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+    score = count * (0.15 + sat) * (0.3 if val < 0.2 or val > 0.95 else 1.0)
+    if score > best_score:
+      best, best_score = (r, g, b), score
+  r, g, b = best
+  return TINT_VALID | (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10)
+
 def cover_bytes(img):
-  hdr = struct.pack("<IBBBB8x", COVER_MAGIC, COVER_VERSION, BIG, SMALL, 0)
+  hdr = struct.pack("<IBBBBH6x", COVER_MAGIC, COVER_VERSION, BIG, SMALL, 0, tint_color(img))
   return hdr + convert(img, BIG) + convert(img, SMALL)
 
 def read_cover(data):
-  # Decodes a .cov file back into (big, small) RGB images (for previews/tests).
-  magic, ver, big, small, pal = struct.unpack_from("<IBBBB8x", data)
-  if magic != COVER_MAGIC or ver != COVER_VERSION or (big, small, pal) != (BIG, SMALL, 0):
+  # Decodes a .cov file: returns (big, small, tint). Images are palette index
+  # bytes, tint is BGR555 or None. Mirrors cover_header_check() in the firmware.
+  magic, ver, big, small, pal, tint = struct.unpack_from("<IBBBBH6x", data)
+  if magic != COVER_MAGIC or ver not in (1, 2) or (big, small, pal) != (BIG, SMALL, 0):
     raise ValueError("not a valid cover file")
   if len(data) != 16 + big * big + small * small:
     raise ValueError("bad cover file size")
@@ -136,7 +159,8 @@ def read_cover(data):
   for sz in (big, small):
     imgs.append(data[off:off + sz * sz])
     off += sz * sz
-  return imgs
+  valid = ver == 2 and (tint & TINT_VALID)
+  return imgs[0], imgs[1], (tint & 0x7FFF) if valid else None
 
 # ---- Name matching -------------------------------------------------------
 

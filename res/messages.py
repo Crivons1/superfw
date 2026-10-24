@@ -77,6 +77,9 @@ en_strings = [
 
   "MSG_CAR_SCAN":    "Looking for games...",
   "MSG_CAR_EMPTY":   "No games found in this folder or its subfolders.",
+  "MSG_CAR_UPDATE":  "Updating game list...",
+  "MSG_CAR_SAVE":    "Save",
+  "MSG_CAR_LAST":    "Last played",
 
   "MSG_UIS_THEME": "Theme color",
   "MSG_UIS_LANG":  "Language",
