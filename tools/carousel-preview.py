@@ -143,13 +143,13 @@ def render(games, covers, sel, offset, cpath, theme, icons):
   s.fill(0, 0, W, 16, FG)
   for i, ic in enumerate(TAB_ICONS):
     s.icon(i * 16, 0, ic, i != CAROUSEL_TAB)
-  # Bottom bar
+  # Bottom bar: folder of the selected game
   s.fill(0, 144, W, 16, FG)
-  s.text(cpath, 8, 144)
+  s.text(games[sel][2] if games else cpath, 8, 144)
 
   if not games:
-    s.central("No games in this folder. Open a", W // 2, 48)
-    s.central("folder with games in the SD tab.", W // 2, 64)
+    s.central("No games found in this folder", W // 2, 48)
+    s.central("or its subfolders.", W // 2, 64)
     return s.image(icons)
 
   for k in (-2, 2, -1, 1, 0):
@@ -163,7 +163,7 @@ def render(games, covers, sel, offset, cpath, theme, icons):
     left = cx - size // 2
     if big:
       s.fill(left - 2, top - 2, size + 4, size + 4, FG)
-    cov = covers.get(games[n][0])
+    cov = covers.get(games[n][3])
     if cov:
       s.blit(cov[0] if big else cov[1], size, left, top)
     else:
@@ -172,7 +172,7 @@ def render(games, covers, sel, offset, cpath, theme, icons):
       if cx >= 8 and cx + 8 <= W:
         s.icon(cx - 8, top + size // 2 - 8, guessicon(games[n][0]))
 
-  fn, fs = games[sel]
+  fn, fs = games[sel][:2]
   title = os.path.splitext(fn)[0]
   for i in range(1, len(title)):     # Same tag stripping as the firmware
     if title[i] in "([" and title[i - 1] == " ":
@@ -199,24 +199,36 @@ def main():
   a = p.parse_args()
 
   romdir = os.path.join(a.sdroot, a.romdir.strip("/\\"))
+  cpath = ("/" + a.romdir.strip("/\\").replace("\\", "/") + "/").replace("//", "/")
+
+  # Same as carousel_scan(): every game in romdir and its subfolders, by name.
   games = []
-  for fn in os.listdir(romdir):
-    full = os.path.join(romdir, fn)
-    ext = os.path.splitext(fn)[1][1:].lower()
-    if os.path.isfile(full) and not fn.startswith(".") and ext in mc.SYSTEMS:
-      games.append((fn, os.path.getsize(full)))
-  # The browser sorts case-insensitively
+  for dirpath, dirnames, filenames in os.walk(romdir):
+    dirnames[:] = [d for d in dirnames if not d.startswith(".") and d != "System Volume Information"]
+    rel = os.path.relpath(dirpath, romdir).replace("\\", "/")
+    folder = cpath + ("" if rel == "." else rel + "/")
+    for fn in filenames:
+      full = os.path.join(dirpath, fn)
+      ext = os.path.splitext(fn)[1][1:].lower()
+      if not fn.startswith(".") and ext in mc.SYSTEMS:
+        games.append((fn, os.path.getsize(full), folder, full))
   games.sort(key=lambda g: g[0].lower())
 
+  # Same lookup as carousel_open_cover(): <file name>.cov, then <game code>.cov
   covers = {}
-  for fn, _ in games:
-    cfn = os.path.join(a.sdroot, mc.COVERS_DIR, fn + ".cov")
-    if os.path.exists(cfn):
-      with open(cfn, "rb") as fd:
-        covers[fn] = mc.read_cover(fd.read())
+  for fn, _, _, full in games:
+    names = [fn + ".cov"]
+    code = mc.gba_gamecode(full) if fn.lower().endswith(".gba") else None
+    if code:
+      names.append(code + ".cov")
+    for name in names:
+      cfn = os.path.join(a.sdroot, mc.COVERS_DIR, name)
+      if os.path.exists(cfn):
+        with open(cfn, "rb") as fd:
+          covers[full] = mc.read_cover(fd.read())
+        break
 
   icons = Image.open(os.path.join(ROOT, "res", "icons.png")).convert("RGBA")
-  cpath = "/" + a.romdir.strip("/\\").replace("\\", "/") + "/"
   up = lambda im: im.resize((W * a.scale, H * a.scale), Image.NEAREST)
 
   sel = min(a.select, max(0, len(games) - 1))

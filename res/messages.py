@@ -75,12 +75,19 @@ en_strings = [
   "MSG_DEFS_PATCH":  "Patching",
   "MSG_BROW_EMPTY":  "Empty directory",
 
+  "MSG_CAR_SCAN":    "Looking for games...",
+  "MSG_CAR_EMPTY":   "No games found in this folder or its subfolders.",
+
   "MSG_UIS_THEME": "Theme color",
   "MSG_UIS_LANG":  "Language",
   "MSG_UIS_RECNT": "Recent ROMs",
   "MSG_UIS_ANSPD": "Text speed",
   "MSG_UIS_BHID":  "Show hidden files",
+  "MSG_UIS_START": "Start tab",
   "MSG_UIS_SAVE":  "Save to SD card",
+
+  "MSG_UIS_STB0":  "< Browser >",
+  "MSG_UIS_STB1":  "< Carousel >",
 
   "MSG_UIS_SPD0":  "Very slow",
   "MSG_UIS_SPD1":  "Slow",

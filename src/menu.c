@@ -98,6 +98,19 @@ enum {
 #define COVER_PAL_BASE      20             // 6x6x6 color cube at [20..235]
 #define COVER_PAL_SIZE     216
 
+// Carousel game list: all games under the browser's current dir (recursive).
+#define CAROUSEL_MAX_GAMES  4096
+#define CAROUSEL_POOL_SIZE  (128*1024)     // Relative paths, NUL terminated, word aligned
+#define CAROUSEL_MAX_DEPTH     8           // Subdirectory levels scanned
+
+typedef struct {
+  uint32_t filesize;
+  uint32_t pathoff;         // Offset of the path (relative to the scan root) in the pool
+  uint16_t nameoff;         // Offset of the file name within the path
+  uint16_t pad;
+} t_cgame;
+_Static_assert (sizeof(t_cgame) % 4 == 0, "t_cgame must be word-friendly");
+
 typedef struct {
   uint32_t magic;           // COVER_MAGIC
   uint8_t version;          // COVER_VERSION
@@ -136,8 +149,9 @@ enum {
   UiSetRect  = 2,
   UiSetASpd  = 3,
   UiSetHid   = 4,
-  UiSetSave  = 5,
-  UiSetMAX   = 5,
+  UiSetStart = 5,
+  UiSetSave  = 6,
+  UiSetMAX   = 6,
 };
 
 enum {
@@ -327,13 +341,16 @@ static struct {
     uint8_t usedblks, freeblks;   // NOR usage info
   } fbrowser;
 
-  // Carousel state (games in the ROM browser's current dir)
+  // Carousel state (games in the ROM browser's current dir and its subdirs)
   struct {
     int selector;                 // Selected game
     int count;                    // Number of games in the list
+    bool truncated;               // Too many games, the list is incomplete
+    bool scan_pending;            // "Looking for games" was shown, scan next frame
     int offset;                   // Slide animation offset (pixels, even)
     unsigned lastframe;           // Frame count at the last render
     unsigned browser_gen;         // Browser list generation it was built from
+    char root[MAX_FN_LEN];        // Dir that was scanned (ends with '/')
     int slot_entry[COVER_SLOTS];  // Game loaded in each cover slot (-1: none)
     uint8_t slot_state[COVER_SLOTS];
   } carousel;
@@ -447,7 +464,8 @@ typedef struct {
   t_centry fentries[BROWSER_MAXFN_CNT];
   t_rentry rentries[RECENT_MAXFN_CNT];
   t_reg_entry_max nordata;
-  uint16_t carousel_idx[BROWSER_MAXFN_CNT];             // Carousel game -> fileorder index
+  t_cgame carousel_games[CAROUSEL_MAX_GAMES];
+  char carousel_pool[CAROUSEL_POOL_SIZE];
   uint8_t cover_big[COVER_SLOTS][COVER_BIG * COVER_BIG];
   uint8_t cover_small[COVER_SLOTS][COVER_SMALL * COVER_SMALL];
 } t_sdram_state;
@@ -1978,28 +1996,32 @@ void render_settings(volatile uint8_t *frame) {
 
 void render_ui_settings(volatile uint8_t *frame) {
   const unsigned colx = 170;
+  const unsigned rowh = 18;
   char tmpbuf[64];
   npf_snprintf(tmpbuf, sizeof(tmpbuf), "< %u >", menu_theme + 1U);
   draw_text_ovf(msgs[lang_id][MSG_UIS_THEME], frame, 8, 22, 224);
   draw_central_text(tmpbuf, frame, colx, 22 );
 
   npf_snprintf(tmpbuf, sizeof(tmpbuf), "< %s >", msgs[lang_id][MSG_LANG_NAME]);
-  draw_text_ovf(msgs[lang_id][MSG_UIS_LANG], frame, 8, 22 + 20, 224);
-  draw_central_text(tmpbuf, frame, colx, 22 + 20 );
+  draw_text_ovf(msgs[lang_id][MSG_UIS_LANG], frame, 8, 22 + rowh, 224);
+  draw_central_text(tmpbuf, frame, colx, 22 + rowh );
 
-  draw_text_ovf(msgs[lang_id][MSG_UIS_RECNT], frame, 8, 22 + 40, 224);
-  draw_central_text(msgs[lang_id][recent_menu ? MSG_KNOB_ENABLED : MSG_KNOB_DISABLED], frame, colx, 22 + 40 );
+  draw_text_ovf(msgs[lang_id][MSG_UIS_RECNT], frame, 8, 22 + rowh * 2, 224);
+  draw_central_text(msgs[lang_id][recent_menu ? MSG_KNOB_ENABLED : MSG_KNOB_DISABLED], frame, colx, 22 + rowh * 2 );
 
   npf_snprintf(tmpbuf, sizeof(tmpbuf), "< %s >", msgs[lang_id][MSG_UIS_SPD0 + anim_speed]);
-  draw_text_ovf(msgs[lang_id][MSG_UIS_ANSPD], frame, 8, 22 + 60, 224);
-  draw_central_text(tmpbuf, frame, colx, 22 + 60 );
+  draw_text_ovf(msgs[lang_id][MSG_UIS_ANSPD], frame, 8, 22 + rowh * 3, 224);
+  draw_central_text(tmpbuf, frame, colx, 22 + rowh * 3 );
 
-  draw_text_ovf(msgs[lang_id][MSG_UIS_BHID], frame, 8, 22 + 80, 224);
-  draw_central_text(msgs[lang_id][hide_hidden ? MSG_KNOB_DISABLED : MSG_KNOB_ENABLED], frame, colx, 22 + 80 );
+  draw_text_ovf(msgs[lang_id][MSG_UIS_BHID], frame, 8, 22 + rowh * 4, 224);
+  draw_central_text(msgs[lang_id][hide_hidden ? MSG_KNOB_DISABLED : MSG_KNOB_ENABLED], frame, colx, 22 + rowh * 4 );
+
+  draw_text_ovf(msgs[lang_id][MSG_UIS_START], frame, 8, 22 + rowh * 5, 224);
+  draw_central_text(msgs[lang_id][start_tab ? MSG_UIS_STB1 : MSG_UIS_STB0], frame, colx, 22 + rowh * 5 );
 
   if (smenu.uiset.selector != UiSetSave)
     for (unsigned i = 0; i < 240; i += 16)
-      render_icon_trans(i, 22 + smenu.uiset.selector * 20, 63);
+      render_icon_trans(i, 22 + smenu.uiset.selector * rowh, 63);
 
   draw_button_box(frame, 20, 220, 132, 152, smenu.uiset.selector == UiSetSave);
   draw_central_text(msgs[lang_id][MSG_UIS_SAVE], frame, 120, 134);
@@ -2079,54 +2101,197 @@ static bool carousel_is_game(const char *fn) {
   return ext && (!strcasecmp(ext, "gba") || get_emu_info(ext));
 }
 
-static const t_centry *carousel_entry(int n) {
-  return sdr_state->fileorder[sdr_state->carousel_idx[n]];
+static const t_cgame *carousel_game(int n) {
+  return &sdr_state->carousel_games[n];
 }
 
-// Bounded copy of a game's file name (the list lives in SDRAM, which a failed
-// ROM load can trash, so never trust it to be NUL terminated).
-static void carousel_fname(int n, char out[MAX_FN_LEN]) {
-  const char *s = carousel_entry(n)->fname;
+static const char *carousel_name_ptr(const t_cgame *g) {
+  return &sdr_state->carousel_pool[(g->pathoff + g->nameoff) % CAROUSEL_POOL_SIZE];
+}
+
+// Bounded string copy. The list lives in SDRAM, which a failed ROM load can
+// trash, so never trust it to be NUL terminated.
+static void carousel_copy(const char *s, char out[MAX_FN_LEN]) {
   unsigned i = 0;
   for (; i < MAX_FN_LEN - 1 && s[i]; i++)
     out[i] = s[i];
   out[i] = 0;
 }
 
-// Builds the game list from the ROM browser's current (filtered) dir.
-static void carousel_rebuild() {
-  int cnt = 0, start = 0;
-  for (int i = 0; i < smenu.browser.dispentries; i++) {
-    const t_centry *e = sdr_state->fileorder[i];
-    if (!e->isdir && carousel_is_game(e->fname)) {
-      // Start at the game selected in the browser (or the closest one before it)
-      if (i <= smenu.browser.selector)
-        start = cnt;
-      sdr_state->carousel_idx[cnt++] = i;
+static void carousel_fname(int n, char out[MAX_FN_LEN]) {
+  carousel_copy(carousel_name_ptr(carousel_game(n)), out);
+}
+
+// Full path of a game (scan root + relative path). False if it is too long.
+static bool carousel_fullpath(int n, char out[MAX_FN_LEN]) {
+  char rel[MAX_FN_LEN];
+  carousel_copy(&sdr_state->carousel_pool[carousel_game(n)->pathoff % CAROUSEL_POOL_SIZE], rel);
+  if (strlen(smenu.carousel.root) + strlen(rel) >= MAX_FN_LEN)
+    return false;
+  strcpy(out, smenu.carousel.root);
+  strcat(out, rel);
+  return true;
+}
+
+// Sorts games by file name (not by folder), same ordering rules as the browser.
+NOINLINE static int carousel_sort(const void *a, const void *b) {
+  const char *sa = carousel_name_ptr((const t_cgame*)a);
+  const char *sb = carousel_name_ptr((const t_cgame*)b);
+  while (*sa && *sb) {
+    unsigned ca = unicodeorder(utf8_decode(sa));
+    unsigned cb = unicodeorder(utf8_decode(sb));
+    if (ca != cb)
+      return ca < cb ? -1 : 1;
+    sa += utf8_chlen(sa);
+    sb += utf8_chlen(sb);
+  }
+  return (*sa ? 1 : 0) - (*sb ? 1 : 0);
+}
+
+// Builds the game list: every game under the browser's current dir, including
+// subdirs (up to CAROUSEL_MAX_DEPTH levels). Paths are stored relative to it.
+static void carousel_scan() {
+  char path[MAX_FN_LEN];
+  DIR dirs[CAROUSEL_MAX_DEPTH];
+  unsigned plen[CAROUSEL_MAX_DEPTH];
+  uint32_t tmp[(MAX_FN_LEN + 4) / 4];     // Word aligned bounce buffer (SDRAM)
+  unsigned cnt = 0, pooloff = 0;
+  int depth = 0;
+
+  strcpy(smenu.carousel.root, smenu.browser.cpath);
+  strcpy(path, smenu.carousel.root);
+  const unsigned rootlen = strlen(path);
+  smenu.carousel.truncated = false;
+
+  if (FR_OK == f_opendir(&dirs[0], path)) {
+    plen[0] = rootlen;
+    while (depth >= 0) {
+      FILINFO info;
+      if (FR_OK != f_readdir(&dirs[depth], &info) || !info.fname[0]) {
+        // Done with this dir, go back to the parent.
+        f_closedir(&dirs[depth--]);
+        if (depth >= 0)
+          path[plen[depth]] = 0;
+        continue;
+      }
+
+      // Skip SuperFW's own dir, system dirs and (if requested) hidden entries.
+      if (info.fname[0] == '.' || (info.fattrib & AM_SYS) || ((info.fattrib & AM_HID) && hide_hidden))
+        continue;
+
+      const unsigned flen = strlen(info.fname);
+      if (plen[depth] + flen + 1 >= MAX_FN_LEN)
+        continue;     // Path too long
+
+      if (info.fattrib & AM_DIR) {
+        if (depth + 1 < CAROUSEL_MAX_DEPTH) {
+          strcat(path, info.fname);
+          strcat(path, "/");
+          if (FR_OK == f_opendir(&dirs[depth + 1], path)) {
+            depth++;
+            plen[depth] = plen[depth - 1] + flen + 1;
+          } else
+            path[plen[depth]] = 0;
+        }
+        continue;
+      }
+
+      if (!carousel_is_game(info.fname))
+        continue;
+
+      const unsigned rdir = plen[depth] - rootlen;        // Relative dir length
+      const unsigned need = ROUND_UP2(rdir + flen + 1, 4);
+      if (cnt >= CAROUSEL_MAX_GAMES || pooloff + need > CAROUSEL_POOL_SIZE) {
+        smenu.carousel.truncated = true;
+        while (depth >= 0)
+          f_closedir(&dirs[depth--]);
+        break;
+      }
+
+      // SDRAM only takes 16/32 bit writes: build the entry and copy it by words.
+      char *t = (char*)tmp;
+      memcpy(t, &path[rootlen], rdir);
+      memcpy(&t[rdir], info.fname, flen);
+      memset(&t[rdir + flen], 0, need - rdir - flen);
+      memcpy32(&sdr_state->carousel_pool[pooloff], tmp, need);
+
+      t_cgame g = { (uint32_t)info.fsize, pooloff, rdir, 0 };
+      memcpy32(&sdr_state->carousel_games[cnt++], &g, sizeof(g));
+      pooloff += need;
     }
   }
 
+  heapsort4(sdr_state->carousel_games, cnt, sizeof(t_cgame) / sizeof(uint32_t), carousel_sort);
   smenu.carousel.count = cnt;
-  smenu.carousel.selector = start;
+
+  // Start at the game selected in the browser, if it is one.
+  smenu.carousel.selector = 0;
+  if (smenu.browser.selector >= 0 && smenu.browser.selector < smenu.browser.dispentries) {
+    const t_centry *e = sdr_state->fileorder[smenu.browser.selector];
+    if (!e->isdir) {
+      char sel[MAX_FN_LEN], name[MAX_FN_LEN];
+      carousel_copy(e->fname, sel);
+      for (unsigned i = 0; i < cnt; i++) {
+        carousel_fname(i, name);
+        if (!carousel_game(i)->nameoff && !strcmp(name, sel)) {
+          smenu.carousel.selector = i;
+          break;
+        }
+      }
+    }
+  }
+}
+
+static void carousel_rebuild() {
+  carousel_scan();
   smenu.carousel.offset = 0;
   for (unsigned i = 0; i < COVER_SLOTS; i++) {
     smenu.carousel.slot_entry[i] = -1;
     smenu.carousel.slot_state[i] = CoverNotLoaded;
   }
   smenu.carousel.browser_gen = browser_gen;
+  smenu.carousel.scan_pending = false;
 }
 
-// Reads the cover file for a game into a cover slot (in SDRAM).
-static bool carousel_load_cover(int n, unsigned slot) {
+// Opens a game's cover: /.superfw/covers/<rom file name>.cov, or for GBA ROMs
+// /.superfw/covers/<game code>.cov (ie. BPEE.cov), which survives ROM renames.
+static bool carousel_open_cover(int n, FIL *fd) {
   char fname[MAX_FN_LEN];
   char path[sizeof(COVER_PATH) + MAX_FN_LEN + sizeof(COVER_EXT)];
   carousel_fname(n, fname);
   strcpy(path, COVER_PATH);
   strcat(path, fname);
   strcat(path, COVER_EXT);
+  if (FR_OK == f_open(fd, path, FA_READ))
+    return true;
 
+  const char *ext = find_extension(fname);
+  char rompath[MAX_FN_LEN];
+  if (!ext || strcasecmp(ext, "gba") || !carousel_fullpath(n, rompath))
+    return false;
+
+  FIL rom;
+  if (FR_OK != f_open(&rom, rompath, FA_READ))
+    return false;
+  uint8_t code[4];
+  UINT rdbytes;
+  bool ok = FR_OK == f_lseek(&rom, 0xAC) &&
+            FR_OK == f_read(&rom, code, sizeof(code), &rdbytes) && rdbytes == sizeof(code);
+  f_close(&rom);
+
+  for (unsigned i = 0; ok && i < sizeof(code); i++)
+    ok = (code[i] >= 'A' && code[i] <= 'Z') || (code[i] >= '0' && code[i] <= '9');
+  if (!ok)
+    return false;
+
+  npf_snprintf(path, sizeof(path), COVER_PATH "%c%c%c%c" COVER_EXT, code[0], code[1], code[2], code[3]);
+  return FR_OK == f_open(fd, path, FA_READ);
+}
+
+// Reads the cover file for a game into a cover slot (in SDRAM).
+static bool carousel_load_cover(int n, unsigned slot) {
   FIL fd;
-  if (FR_OK != f_open(&fd, path, FA_READ))
+  if (!carousel_open_cover(n, &fd))
     return false;
 
   UINT rdbytes;
@@ -2152,12 +2317,9 @@ static bool carousel_load_cover(int n, unsigned slot) {
   return ok;
 }
 
-// Rebuilds the list if the browser dir changed and loads missing covers.
-// Loads at most one cover per call (selected game first) to keep the UI responsive.
+// Loads missing covers, at most one per call (selected game first) to keep
+// the UI responsive.
 static void carousel_sync() {
-  if (smenu.carousel.browser_gen != browser_gen)
-    carousel_rebuild();
-
   static const int order[] = { 0, 1, -1, 2, -2 };
   for (unsigned i = 0; i < ARRAY_SIZE(order); i++) {
     int n = smenu.carousel.selector + order[i];
@@ -2210,23 +2372,36 @@ static void carousel_draw_cover(volatile uint8_t *frame, int n, int cx) {
     // No cover art (yet): draw a card with the file type icon.
     carousel_fill(frame, left, top, size, size, FG_COLOR);
     carousel_fill(frame, left + 2, top + 2, size - 4, size - 4, HI_COLOR);
-    if (cx >= 8 && cx + 8 <= SCREEN_WIDTH)
-      render_icon(cx - 8, top + size / 2 - 8, guessicon(carousel_entry(n)->fname));
+    if (cx >= 8 && cx + 8 <= SCREEN_WIDTH) {
+      char fname[MAX_FN_LEN];
+      carousel_fname(n, fname);
+      render_icon(cx - 8, top + size / 2 - 8, guessicon(fname));
+    }
   }
 }
 
 void render_carousel(volatile uint8_t *frame) {
-  carousel_sync();
-
   // Render bar below to show the dir being displayed
   dma_memset16(&frame[240*144], dup8(FG_COLOR), 240*16/2);
-  draw_text_leftovf(smenu.browser.cpath, frame, 8, 144, SCREEN_WIDTH - 8);
+
+  if (smenu.carousel.browser_gen != browser_gen) {
+    if (!smenu.carousel.scan_pending) {
+      // Show a message on this frame, scan on the next one (it can take a bit).
+      smenu.carousel.scan_pending = true;
+      draw_text_leftovf(smenu.browser.cpath, frame, 8, 144, SCREEN_WIDTH - 8);
+      draw_central_text(msgs[lang_id][MSG_CAR_SCAN], frame, SCREEN_WIDTH / 2, 64);
+      return;
+    }
+    carousel_rebuild();
+  }
 
   if (!smenu.carousel.count) {
-    draw_central_text_wrapped("No games in this folder. Open a folder with games in the SD tab.",
-                              frame, SCREEN_WIDTH / 2, 48, SCREEN_WIDTH - 32);
+    draw_text_leftovf(smenu.carousel.root, frame, 8, 144, SCREEN_WIDTH - 8);
+    draw_central_text_wrapped(msgs[lang_id][MSG_CAR_EMPTY], frame, SCREEN_WIDTH / 2, 48, SCREEN_WIDTH - 32);
     return;
   }
+
+  carousel_sync();
 
   // Slide towards the resting position (frame based, so frame drops don't slow it down)
   unsigned elapsed = MIN(frame_count - smenu.carousel.lastframe, 8U);
@@ -2249,8 +2424,16 @@ void render_carousel(volatile uint8_t *frame) {
       carousel_draw_cover(frame, n, SCREEN_WIDTH / 2 + order[i] * COVER_SPACING + smenu.carousel.offset);
   }
 
+  // Folder of the selected game in the bottom bar.
+  char fpath[MAX_FN_LEN];
+  if (carousel_fullpath(smenu.carousel.selector, fpath)) {
+    char *s = strrchr(fpath, '/');
+    if (s)
+      s[1] = 0;
+    draw_text_leftovf(fpath, frame, 8, 144, SCREEN_WIDTH - 8);
+  }
+
   // Game title (file name without extension) and type/size info.
-  const t_centry *e = carousel_entry(smenu.carousel.selector);
   char fname[MAX_FN_LEN], title[MAX_FN_LEN];
   carousel_fname(smenu.carousel.selector, fname);
   strcpy(title, fname);
@@ -2270,12 +2453,13 @@ void render_carousel(volatile uint8_t *frame) {
   const char *fext = find_extension(fname);
   for (unsigned i = 0; fext && fext[i] && i < sizeof(ext) - 1; i++)
     ext[i] = (fext[i] >= 'a' && fext[i] <= 'z') ? fext[i] - 'a' + 'A' : fext[i];
-  human_size(szstr, sizeof(szstr), e->filesize);
+  human_size(szstr, sizeof(szstr), carousel_game(smenu.carousel.selector)->filesize);
   npf_snprintf(info, sizeof(info), "%s  %s", ext, szstr);
   draw_central_text(info, frame, SCREEN_WIDTH / 2, 124);
 
   char selinfo[16];
-  npf_snprintf(selinfo, sizeof(selinfo), "%d/%d", smenu.carousel.selector + 1, smenu.carousel.count);
+  npf_snprintf(selinfo, sizeof(selinfo), "%d/%d%s", smenu.carousel.selector + 1, smenu.carousel.count,
+               smenu.carousel.truncated ? "+" : "");
   draw_rightj_text(selinfo, frame, SCREEN_WIDTH - 1, 1);
 }
 
@@ -2414,7 +2598,8 @@ void menu_init(int sram_testres) {
     MEM_PALETTE[COVER_PAL_BASE + i] = (r * 31 / 5) | ((g * 31 / 5) << 5) | ((b * 31 / 5) << 10);
   }
 
-  smenu.menu_tab = (recent_menu && smenu.recent.maxentries) ? MENUTAB_RECENT : MENUTAB_ROMBROWSE;
+  smenu.menu_tab = start_tab ? MENUTAB_CAROUSEL :
+                   (recent_menu && smenu.recent.maxentries) ? MENUTAB_RECENT : MENUTAB_ROMBROWSE;
 
   // Load icons into VRAM
   dma_memcpy16(MEM_VRAM_OBJS, icons_img, sizeof(icons_img) / 2);
@@ -3358,6 +3543,8 @@ static void keypress_menu_uisettings(unsigned newkeys) {
       hide_hidden ^= 1;
     else if (smenu.uiset.selector == UiSetRect)
       recent_menu ^= 1;
+    else if (smenu.uiset.selector == UiSetStart)
+      start_tab = !start_tab;
     else if (smenu.uiset.selector == UiSetLang)
       lang_id = (lang_id + LANG_COUNT - 1) % LANG_COUNT;
   }
@@ -3370,6 +3557,8 @@ static void keypress_menu_uisettings(unsigned newkeys) {
       hide_hidden ^= 1;
     else if (smenu.uiset.selector == UiSetRect)
       recent_menu ^= 1;
+    else if (smenu.uiset.selector == UiSetStart)
+      start_tab = !start_tab;
     else if (smenu.uiset.selector == UiSetLang)
       lang_id = (lang_id + 1) % LANG_COUNT;
   }
@@ -3472,17 +3661,16 @@ static void keypress_menu_info(unsigned newkeys) {
 }
 
 static unsigned carousel_letter(int n) {
-  return carousel_entry(n)->sortname[0];
+  const char *s = carousel_name_ptr(carousel_game(n));
+  return *s ? unicodeorder(utf8_decode(s)) : 0;
 }
 
 static void keypress_menu_carousel(unsigned newkeys) {
-  if (smenu.carousel.browser_gen != browser_gen)
-    carousel_rebuild();
-
-  const int cnt = smenu.carousel.count;
-  if (!cnt)
+  // Ignore keys until the list for the current dir has been built.
+  if (smenu.carousel.browser_gen != browser_gen || !smenu.carousel.count)
     return;
 
+  const int cnt = smenu.carousel.count;
   int sel = smenu.carousel.selector;
   if ((newkeys & KEY_BUTTLEFT) && sel > 0) {
     sel--;
@@ -3518,15 +3706,11 @@ static void keypress_menu_carousel(unsigned newkeys) {
   }
 
   if (newkeys & KEY_BUTTA) {
-    char fname[MAX_FN_LEN], path[MAX_FN_LEN];
-    carousel_fname(sel, fname);
-    if (strlen(smenu.browser.cpath) + strlen(fname) >= sizeof(path))
+    char path[MAX_FN_LEN];
+    if (carousel_fullpath(sel, path))
+      browser_open(path, carousel_game(sel)->filesize);
+    else
       spop.alert_msg = msgs[lang_id][MSG_ERR_READ];
-    else {
-      strcpy(path, smenu.browser.cpath);
-      strcat(path, fname);
-      browser_open(path, carousel_entry(sel)->filesize);
-    }
   }
 }
 

@@ -262,6 +262,21 @@ def find_roms(root):
       if ext in SYSTEMS and not fn.startswith("."):
         yield os.path.join(dirpath, fn), fn, ext
 
+def gba_gamecode(path):
+  # 4 character game code from a valid GBA ROM header (ie. "BPEE"), or None.
+  # Must match the checks in carousel_open_cover() (src/menu.c).
+  try:
+    with open(path, "rb") as fd:
+      h = fd.read(0xC0)
+  except OSError:
+    return None
+  if len(h) < 0xC0 or h[0xB2] != 0x96:
+    return None
+  if (-(sum(h[0xA0:0xBD]) + 0x19)) & 0xFF != h[0xBD]:
+    return None        # Bad header checksum
+  code = h[0xAC:0xB0].decode("ascii", "replace")
+  return code if re.fullmatch(r"[A-Z0-9]{4}", code) else None
+
 def find_local_image(images_dir, romname):
   if not images_dir:
     return None
@@ -303,18 +318,28 @@ def main():
 
   made, skipped, missing = 0, 0, []
   done = set()
+  codes_used = set()      # Game codes that got a cover file in this run
   for path, romname, ext in find_roms(args.sdroot):
     if romname in done:
       continue      # Same file name in another folder shares the cover
     done.add(romname)
 
-    outfn = os.path.join(outdir, romname + ".cov")
-    if os.path.exists(outfn) and not args.force:
+    local = find_local_image(args.images, romname)
+    namefn = os.path.join(outdir, romname + ".cov")
+    code = gba_gamecode(path) if ext == "gba" else None
+    codefn = os.path.join(outdir, code + ".cov") if code else None
+
+    if not args.force and (os.path.exists(namefn) or (codefn and not local and os.path.exists(codefn))):
       skipped += 1
       continue
 
+    # GBA covers are named after the game code (ie. BPEE.cov), so they keep
+    # working if the ROM is renamed. Your own images, and a second ROM with the
+    # same code (ie. a ROM hack), use the ROM file name instead.
+    use_code = bool(codefn) and not local and code not in codes_used
+    outfn = codefn if use_code else namefn
+
     img, source = None, None
-    local = find_local_image(args.images, romname)
     try:
       if local:
         img, source = Image.open(local), local
@@ -334,12 +359,15 @@ def main():
       print("NO COVER   %s" % romname)
       continue
 
-    print("%s %s  <-  %s" % ("WOULD MAKE" if args.dry_run else "MADE      ", romname, source))
+    print("%s %s  <-  %s  [%s]" % ("WOULD MAKE" if args.dry_run else "MADE      ", romname, source,
+                                    os.path.basename(outfn)))
     if not args.dry_run:
       os.makedirs(outdir, exist_ok=True)
       data = cover_bytes(img)
       with open(outfn, "wb") as fd:
         fd.write(data)
+    if use_code:
+      codes_used.add(code)
     made += 1
 
   print()

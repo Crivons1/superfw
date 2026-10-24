@@ -219,5 +219,10 @@
     "MSG_UIS_SPD2": "Normal",
     "MSG_UIS_SPD3": "Rápido",
     "MSG_UIS_SPD4": "Muito rápido",
-    "MSG_STILLRTC": "Congelado"
+    "MSG_STILLRTC": "Congelado",
+    "MSG_CAR_SCAN": "Procurando jogos...",
+    "MSG_CAR_EMPTY": "Nenhum jogo nesta pasta nem nas subpastas.",
+    "MSG_UIS_START": "Aba inicial",
+    "MSG_UIS_STB0": "< Navegador >",
+    "MSG_UIS_STB1": "< Carrossel >"
 }
