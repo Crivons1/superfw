@@ -3951,6 +3951,10 @@ static void keypress_menu_uisettings(unsigned newkeys) {
   if ((newkeys & (KEY_BUTTLEFT | KEY_BUTTRIGHT)) && smenu.uiset.selector == UiSetLang)
     lang_load(lang_id);
 
+  // Apply the hidden files filter now (not only after changing folders).
+  if ((newkeys & (KEY_BUTTLEFT | KEY_BUTTRIGHT)) && smenu.uiset.selector == UiSetHid)
+    browser_reload_filter();
+
   if (newkeys & KEY_BUTTA && smenu.uiset.selector == UiSetSave) {
     smenu.uiset.selector = 0;
     if (save_ui_settings())
