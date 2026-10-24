@@ -87,6 +87,7 @@ static void check_folder(const char *dirname11) {
   assert(f_opendir(&d, "/") == FR_OK);
   assert(f_readdir(&d, &fi) == FR_OK);
   assert(fi.fname[0] && (fi.fattrib & AM_DIR));
+  assert(strcmp(fi.fname, "?"));           // Issue #84: names too long for FF_SFN_BUF
   f_closedir(&d);
 
   char path[600];
