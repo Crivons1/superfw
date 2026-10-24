@@ -289,6 +289,13 @@ master and tags.
  - Files read from the SD card (cheats, patches, settings, the pending save
    and the NOR metadata) can be damaged or edited by hand: their parsers
    check sizes and counts before using them as lengths or indexes.
+   `tests/fuzz/` fuzzes them (libFuzzer with address and undefined behaviour
+   sanitizers, needs clang): `make run` there, CI runs each for 45 seconds.
+ - Paths are built with `path_join()` / `path_join_ext()` (src/util.c),
+   which refuse results longer than `MAX_FN_LEN` instead of overflowing.
+ - `make BOARD=... stack-check` adds up the worst case stack depth from
+   GCC's call graph info (`tools/stack-check.py`) and fails if it is over the
+   16 KB stack. CI runs it, and cppcheck on `src/`.
 
 Licenses
 --------
