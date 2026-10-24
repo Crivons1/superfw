@@ -61,7 +61,7 @@ uint16_t rgb555_mix(uint16_t a, uint16_t b, unsigned weight);
 unsigned cover_size_at(unsigned dist, unsigned spacing);
 
 // Display title from a ROM file name: no extension, no "(USA)"/"[!]" tags and
-// no scene release number ("1190 - "). out must hold MAX_FN_LEN bytes.
+// no 4 digit scene release number ("1190 - "). out must hold MAX_FN_LEN bytes.
 void carousel_title(const char *fname, char *out);
 
 // Compares two file names for sorting (case insensitive, accents folded).

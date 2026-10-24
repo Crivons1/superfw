@@ -69,7 +69,7 @@ def carousel_title(fn):
     if t[i] in "([" and t[i - 1] == " ":
       t = t[:i - 1]
       break
-  m = re.match(r"^\d{3,4} - (.+)$", t)
+  m = re.match(r"^\d{4} - (.+)$", t)
   return m.group(1) if m else t
 
 def load_font():

@@ -63,11 +63,12 @@ void carousel_title(const char *fname, char *out) {
       break;
     }
 
-  // Remove scene release numbers: "1190 - Super Mario Advance 4" (3-4 digits)
+  // Remove scene release numbers: "1190 - Super Mario Advance 4". Always 4
+  // digits, so titles like "007 - NightFire" are left alone.
   unsigned n = 0;
   while (n < 5 && out[n] >= '0' && out[n] <= '9')
     n++;
-  if (n >= 3 && n <= 4 && !strncmp(&out[n], " - ", 3) && out[n + 3])
+  if (n == 4 && !strncmp(&out[n], " - ", 3) && out[n + 3])
     memmove(out, &out[n + 3], strlen(&out[n + 3]) + 1);
 }
 

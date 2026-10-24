@@ -2723,7 +2723,9 @@ void render_carousel(volatile uint8_t *frame) {
   // Position in the list.
   if (smenu.carousel.count > 1) {
     const int track = SCREEN_WIDTH - 16;
-    int w = MAX(8, (track / smenu.carousel.count) & ~1);
+    int w = (track / smenu.carousel.count) & ~1;    // Not MAX(): its macro breaks '&'
+    if (w < 8)
+      w = 8;
     int x = 8 + (((track - w) * smenu.carousel.selector / (smenu.carousel.count - 1)) & ~1);
     carousel_fill(frame, 8, 140, track, 2, FG_COLOR);
     carousel_fill(frame, x, 139, w, 4, FT_COLOR);
