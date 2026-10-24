@@ -7,7 +7,9 @@ by their commit. Every release has the firmware for the three boards
 (`superfw-sd.fw`, `superfw-lite.fw`, `superfw-chis.fw`) and the cover maker
 for Windows, macOS and Linux.
 
-## Unreleased
+## v0.21-carousel.2
+
+Same upstream base as v0.21-carousel.1.
 
 - **Folders with short Chinese names** (or other names a non-US Windows
   stored as 8.3 only) showed as "?" and could not be opened (upstream
@@ -24,6 +26,7 @@ for Windows, macOS and Linux.
   of the 16 KB stack (it showed 15.1 KB by over-counting).
 - The emulator path buffer is 64 bytes again (it sits on the deepest stack
   path), with a length check.
+- README: example pictures of the carousel tab (`docs/images/`).
 
 ## v0.21-carousel.1
 
