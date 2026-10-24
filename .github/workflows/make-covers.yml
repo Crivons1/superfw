@@ -1,0 +1,82 @@
+name: make-covers.exe
+run-name: Build make-covers.exe
+
+# Builds tools/make-covers.py as a single Windows .exe (no Python needed) and
+# publishes it as the "make-covers-latest" release, so the latest version is
+# always at the same link:
+#   https://github.com/<owner>/<repo>/releases/download/make-covers-latest/make-covers.exe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'carousel'
+    paths:
+      - 'tools/make-covers.py'
+      - 'tests/make_covers_test.py'
+      - 'tools/carousel-preview.py'
+      - '.github/workflows/make-covers.yml'
+
+permissions:
+  contents: write     # Needed to publish the release
+
+jobs:
+  build-exe:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python -m pip install pillow==12.3.0 pyinstaller==6.22.2
+
+      - name: Run the tool tests
+        run: python tests/make_covers_test.py
+
+      - name: Build make-covers.exe
+        run: python -m PyInstaller --onefile --console --name make-covers --exclude-module tkinter --exclude-module unittest tools/make-covers.py
+
+      - name: Check that the exe runs
+        shell: bash
+        run: |
+          ./dist/make-covers.exe --help
+          mkdir -p sdtest/GBA
+          ./dist/make-covers.exe sdtest --no-download
+
+      - name: Checksum
+        shell: bash
+        run: |
+          cd dist
+          sha256sum make-covers.exe > make-covers.exe.sha256
+          cat make-covers.exe.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: make-covers-${{ github.sha }}
+          path: dist/make-covers.exe*
+
+      - name: Publish as the latest make-covers release
+        if: github.ref == 'refs/heads/carousel'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "make-covers.exe built from commit ${GITHUB_SHA::8} on $(date -u +%Y-%m-%d)."
+            echo
+            echo "Copy it to the root of the SD card and double-click it: it makes the cover"
+            echo "files for every game on the card (it needs an internet connection)."
+            echo "Windows may warn that it is an unknown program (it is not signed):"
+            echo "More info -> Run anyway."
+            echo
+            echo "SHA-256: $(cut -d' ' -f1 dist/make-covers.exe.sha256)"
+          } > notes.txt
+          gh release delete make-covers-latest --cleanup-tag --yes || true
+          gh release create make-covers-latest dist/make-covers.exe dist/make-covers.exe.sha256 \
+            --target "$GITHUB_SHA" --title "make-covers.exe (latest)" --notes-file notes.txt --latest=false

@@ -88,8 +88,12 @@ identify (hacks, homebrew, bad dumps) are matched by file name instead. Use
 `Metroid Fusion (USA).png`), `--dry-run` to see the matches first,
 `--force` to regenerate covers and `--no-checksum` to skip reading the ROMs.
 
-On Windows the tool can also be packaged as a single .exe that you copy to
-the SD card root and double-click (it then works on its own folder):
+On Windows you can use it without Python: download
+[make-covers.exe](https://github.com/Crivons1/superfw/releases/download/make-covers-latest/make-covers.exe)
+(always the latest version, built by GitHub Actions; its SHA-256 is in
+[make-covers.exe.sha256](https://github.com/Crivons1/superfw/releases/download/make-covers-latest/make-covers.exe.sha256)),
+copy it to the SD card root and double-click it (it then works on its own
+folder). To build it yourself:
 
     pip install pyinstaller pillow
     pyinstaller --onefile --console --name make-covers tools/make-covers.py
