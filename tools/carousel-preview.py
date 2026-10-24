@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# Renders a PC preview of the SuperFW carousel tab (240x160, like the GBA).
+#
+# Mirrors the drawing code in src/menu.c (render_carousel and friends) and uses
+# the real assets: the icon strip, the unscii font and the .cov cover files
+# produced by make-covers.py. Useful to check covers before copying them.
+#
+# Usage:
+#   python carousel-preview.py <sd root> <rom dir on the sd, ie. /GBA/> out.png [--gif out.gif]
+
+import argparse, importlib.util, os, sys
+from PIL import Image
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+
+spec = importlib.util.spec_from_file_location("make_covers", os.path.join(HERE, "make-covers.py"))
+mc = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mc)
+
+W, H = 240, 160
+FG, BG, FT, HI = 16, 17, 18, 19
+COVER_SPACING, BIG_TOP, SMALL_TOP = 76, 22, 38
+
+# themes[] in src/menu.c: fg, bg, ft, hi
+THEMES = [
+  (0xaaaaaa, 0xffffff, 0x000000, 0xcccccc),
+  (0xeca551, 0xe7c092, 0x000000, 0xbda27b),
+  (0x26879c, 0x8fb1b8, 0x000000, 0x5296a5),
+  (0x308855, 0x88aa99, 0x000000, 0x778888),
+  (0xad11c8, 0xe47af6, 0x000000, 0xad5dc6),
+  (0x222222, 0x444444, 0xeeeeee, 0x737573),
+]
+
+# Tab icons for the "chis" build (src/res/icons.h order)
+ICON = {"GBCART": 3, "GBCCART": 4, "GBACART": 5, "SMSCART": 6, "NESCART": 7, "BINFILE": 1}
+TAB_ICONS = [8, 9, 10, 17, 11, 12, 13, 14]   # Recent, SD, NOR, Carousel, Settings, UI, Tools, Info
+CAROUSEL_TAB = 3
+
+def gba_rgb(c24):
+  # RGB2GBA() then back to what the screen shows
+  out = []
+  for sh in (16, 8, 0):
+    v5 = ((c24 >> sh) & 0xff) >> 3
+    out.append((v5 << 3) | (v5 >> 2))
+  return tuple(out)
+
+def load_font():
+  glyphs = {}
+  with open(os.path.join(ROOT, "res", "fonts", "unscii-16.hex")) as fd:
+    for line in fd:
+      code, bits = line.strip().split(":")
+      code = int(code, 16)
+      if code > 0x24FF:
+        continue
+      width = len(bits) * 4 // 16    # 8 or 16 pixel wide glyphs
+      rows = [int(bits[r * width // 4:(r + 1) * width // 4], 16) for r in range(16)]
+      cols = [sum(((rows[r] >> (width - 1 - c)) & 1) << r for r in range(16)) for c in range(width)]
+      while cols and cols[0] == 0:
+        cols = cols[1:]
+      while cols and cols[-1] == 0:
+        cols = cols[:-1]
+      glyphs[code] = cols or [0] * 4
+  return glyphs
+
+FONT = load_font()
+
+def text_width(s):
+  return sum(len(FONT.get(ord(ch), FONT[ord("?")])) + 1 for ch in s)
+
+class Screen:
+  def __init__(self, theme):
+    self.px = bytearray([BG]) * (W * H)
+    self.objs = []
+    self.theme = theme
+
+  def fill(self, left, top, w, h, color):
+    x0, x1 = max(left, 0), min(left + w, W)
+    for y in range(max(top, 0), min(top + h, H)):
+      if x1 > x0:
+        self.px[y * W + x0:y * W + x1] = bytes([color]) * (x1 - x0)
+
+  def blit(self, src, size, left, top):
+    x0, x1 = max(0, -left), min(size, W - left)
+    if x1 <= x0:
+      return
+    for y in range(size):
+      self.px[(top + y) * W + left + x0:(top + y) * W + left + x1] = src[y * size + x0:y * size + x1]
+
+  def text(self, s, x, y, maxw=None):
+    for ch in s:
+      for col in FONT.get(ord(ch), FONT[ord("?")]):
+        if maxw is not None and x >= maxw:
+          return
+        for r in range(16):
+          if (col >> r) & 1 and 0 <= x < W:
+            self.px[(y + r) * W + x] = FT
+        x += 1
+      x += 1
+
+  def central(self, s, x, y):
+    self.text(s, x - text_width(s) // 2, y)
+
+  def rightj(self, s, x, y):
+    self.text(s, x - text_width(s), y)
+
+  def icon(self, x, y, n, trans=False):
+    self.objs.append((x, y, n, trans))
+
+  def image(self, icons):
+    fg, bg, ft, hi = THEMES[self.theme]
+    pal = {FG: gba_rgb(fg), BG: gba_rgb(bg), FT: gba_rgb(ft), HI: gba_rgb(hi)}
+    for i, c in enumerate(mc.PALETTE):
+      pal[mc.PAL_BASE + i] = c
+    img = Image.new("RGB", (W, H))
+    img.putdata([pal.get(p, (255, 255, 255)) for p in self.px])
+    for x, y, n, trans in self.objs:
+      ic = icons.crop((n * 16, 0, n * 16 + 16, 16))
+      if trans:   # 50% alpha blending (REG_BLDALPHA = 0x0808)
+        a = ic.getchannel("A").point(lambda v: 128 if v > 128 else 0)
+        ic.putalpha(a)
+      img.paste(ic, (x, y), ic)
+    return img
+
+def guessicon(fn):
+  ext = os.path.splitext(fn)[1][1:].lower()
+  return {"gba": ICON["GBACART"], "gb": ICON["GBCART"], "gbc": ICON["GBCCART"],
+          "nes": ICON["NESCART"], "sms": ICON["SMSCART"]}.get(ext, ICON["BINFILE"])
+
+def human_size(sz):
+  # Same as human_size() in src/util.c
+  if sz < 1024:
+    return "1K"
+  if sz < 1024 * 1024:
+    return "%uK" % (sz >> 10)
+  return "%uM" % (sz >> 20)
+
+def render(games, covers, sel, offset, cpath, theme, icons):
+  s = Screen(theme)
+  # Tab bar
+  s.fill(0, 0, W, 16, FG)
+  for i, ic in enumerate(TAB_ICONS):
+    s.icon(i * 16, 0, ic, i != CAROUSEL_TAB)
+  # Bottom bar
+  s.fill(0, 144, W, 16, FG)
+  s.text(cpath, 8, 144)
+
+  if not games:
+    s.central("No games in this folder. Open a", W // 2, 48)
+    s.central("folder with games in the SD tab.", W // 2, 64)
+    return s.image(icons)
+
+  for k in (-2, 2, -1, 1, 0):
+    n = sel + k
+    if not 0 <= n < len(games):
+      continue
+    cx = W // 2 + k * COVER_SPACING + offset
+    big = W // 2 - COVER_SPACING // 2 < cx < W // 2 + COVER_SPACING // 2
+    size = mc.BIG if big else mc.SMALL
+    top = BIG_TOP if big else SMALL_TOP
+    left = cx - size // 2
+    if big:
+      s.fill(left - 2, top - 2, size + 4, size + 4, FG)
+    cov = covers.get(games[n][0])
+    if cov:
+      s.blit(cov[0] if big else cov[1], size, left, top)
+    else:
+      s.fill(left, top, size, size, FG)
+      s.fill(left + 2, top + 2, size - 4, size - 4, HI)
+      if cx >= 8 and cx + 8 <= W:
+        s.icon(cx - 8, top + size // 2 - 8, guessicon(games[n][0]))
+
+  fn, fs = games[sel]
+  title = os.path.splitext(fn)[0]
+  if text_width(title) <= W - 16:
+    s.central(title, W // 2, 106)
+  else:
+    s.text(title, 8, 106, maxw=W - 8)
+  ext = os.path.splitext(fn)[1][1:].upper()
+  s.central("%s  %s" % (ext, human_size(fs)), W // 2, 124)
+  s.rightj("%d/%d" % (sel + 1, len(games)), W - 1, 1)
+  return s.image(icons)
+
+def main():
+  p = argparse.ArgumentParser()
+  p.add_argument("sdroot")
+  p.add_argument("romdir", help="Dir on the SD card, ie. /GBA/")
+  p.add_argument("out")
+  p.add_argument("--gif", default=None, help="Also write an animated GIF scrolling through the games")
+  p.add_argument("--select", type=int, default=0, help="Selected game index")
+  p.add_argument("--theme", type=int, default=0)
+  p.add_argument("--scale", type=int, default=3)
+  a = p.parse_args()
+
+  romdir = os.path.join(a.sdroot, a.romdir.strip("/\\"))
+  games = []
+  for fn in os.listdir(romdir):
+    full = os.path.join(romdir, fn)
+    ext = os.path.splitext(fn)[1][1:].lower()
+    if os.path.isfile(full) and not fn.startswith(".") and ext in mc.SYSTEMS:
+      games.append((fn, os.path.getsize(full)))
+  # The browser sorts case-insensitively
+  games.sort(key=lambda g: g[0].lower())
+
+  covers = {}
+  for fn, _ in games:
+    cfn = os.path.join(a.sdroot, mc.COVERS_DIR, fn + ".cov")
+    if os.path.exists(cfn):
+      with open(cfn, "rb") as fd:
+        covers[fn] = mc.read_cover(fd.read())
+
+  icons = Image.open(os.path.join(ROOT, "res", "icons.png")).convert("RGBA")
+  cpath = "/" + a.romdir.strip("/\\").replace("\\", "/") + "/"
+  up = lambda im: im.resize((W * a.scale, H * a.scale), Image.NEAREST)
+
+  sel = min(a.select, max(0, len(games) - 1))
+  up(render(games, covers, sel, 0, cpath, a.theme, icons)).save(a.out)
+  print("Wrote", a.out)
+
+  if a.gif and games:
+    # Press "right" through the list, same slide animation as the firmware.
+    frames = []
+    for target in list(range(1, len(games))) + list(range(len(games) - 2, -1, -1)):
+      offset = COVER_SPACING if target > sel else -COVER_SPACING
+      sel = target
+      for f in range(40):
+        if f % 2 == 0:
+          frames.append(up(render(games, covers, sel, offset, cpath, a.theme, icons)))
+        dist = abs(offset)
+        step = max(2, (dist // 4) & ~1)
+        offset = max(0, offset - step) if offset > 0 else min(0, offset + step)
+    frames[0].save(a.gif, save_all=True, append_images=frames[1:], duration=33, loop=0)
+    print("Wrote", a.gif)
+
+if __name__ == "__main__":
+  main()
