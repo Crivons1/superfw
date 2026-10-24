@@ -67,6 +67,12 @@ It scans the whole card, downloads matching box art from the libretro
 thumbnails collection and writes the cover files. Use `--images <folder>` to
 provide your own images (named like the ROM, ie. `Metroid Fusion (USA).png`),
 `--dry-run` to see the matches first and `--force` to regenerate covers.
+
+On Windows the tool can also be packaged as a single .exe that you copy to
+the SD card root and double-click (it then works on its own folder):
+
+    pip install pyinstaller pillow
+    pyinstaller --onefile --console --name make-covers tools/make-covers.py
 `tools/carousel-preview.py` renders a PC preview of the tab.
 
 ROM patching

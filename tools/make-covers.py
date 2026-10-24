@@ -273,9 +273,17 @@ def find_local_image(images_dir, romname):
         return p
   return None
 
+def default_sdroot():
+  # Packaged as an .exe (PyInstaller): use the folder the .exe sits in, so it
+  # can be copied to the SD card root and double-clicked.
+  if getattr(sys, "frozen", False):
+    return os.path.dirname(os.path.abspath(sys.executable))
+  return None
+
 def main():
   parser = argparse.ArgumentParser(description="Generate SuperFW carousel cover art")
-  parser.add_argument("sdroot", help="SD card root (ie. E:\\) or a folder with ROMs")
+  parser.add_argument("sdroot", nargs="?", default=default_sdroot(),
+                      help="SD card root (ie. E:\\) or a folder with ROMs (default for the .exe: its own folder)")
   parser.add_argument("--output", default=None, help="Covers output dir (default: <sdroot>/.superfw/covers)")
   parser.add_argument("--images", default=None, help="Folder with your own cover images, named like the ROMs")
   parser.add_argument("--no-download", action="store_true", help="Only use --images, do not download box art")
@@ -285,6 +293,8 @@ def main():
                       help="Where to cache the downloaded box art index")
   args = parser.parse_args()
 
+  if not args.sdroot:
+    parser.error("the SD card root is required, ie. make-covers.py E:\\")
   if not os.path.isdir(args.sdroot):
     sys.exit("Not a directory: %s" % args.sdroot)
 
@@ -340,4 +350,18 @@ def main():
     print("and run again with --images <folder>.")
 
 if __name__ == "__main__":
-  main()
+  # When double-clicked (.exe without arguments) keep the window open at the end.
+  pause = getattr(sys, "frozen", False) and len(sys.argv) == 1
+  code = 0
+  try:
+    main()
+  except SystemExit as e:
+    if isinstance(e.code, str):
+      print(e.code)
+    code = 0 if e.code in (None, 0) else 1
+  except Exception as e:
+    print("Error: %s" % e)
+    code = 1
+  if pause:
+    input("\nPress Enter to close...")
+  sys.exit(code)
