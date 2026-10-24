@@ -2942,6 +2942,13 @@ void menu_flip() {
 }
 
 void menu_init(int sram_testres) {
+  // ui-settings.txt values are used as table indexes but are not range
+  // checked when parsed (the file could be damaged or edited by hand).
+  if (menu_theme >= THEME_COUNT)
+    menu_theme = 0;
+  if (anim_speed >= animspd_cnt)
+    anim_speed = animspd_cnt / 2;
+
   // Unpack the strings of the language in use (loaded from the settings).
   lang_load(lang_id);
 
