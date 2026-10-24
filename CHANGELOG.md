@@ -7,6 +7,14 @@ by their commit. Every release has the firmware for the three boards
 (`superfw-sd.fw`, `superfw-lite.fw`, `superfw-chis.fw`) and the cover maker
 for Windows, macOS and Linux.
 
+## Unreleased
+
+- The stack check is accurate now: it knows which functions the printf,
+  settings parser and sort callbacks can reach. The worst case is 12.6 KB
+  of the 16 KB stack (it showed 15.1 KB by over-counting).
+- The emulator path buffer is 64 bytes again (it sits on the deepest stack
+  path), with a length check.
+
 ## v0.21-carousel.1
 
 Based on upstream `master` at 1c9ff09 (v0.21 plus the fixes after it: RTC
