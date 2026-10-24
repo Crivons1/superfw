@@ -1,13 +1,22 @@
-name: make-covers.exe
-run-name: Build make-covers.exe
+name: make-covers
+run-name: Build the cover tool for Windows, macOS and Linux
 
-# Builds tools/make-covers.py as a single Windows .exe (no Python needed) and
-# publishes it as the "make-covers-latest" release, so the latest version is
-# always at the same link:
+# Builds tools/make-covers.py as a program that needs no Python:
+#   make-covers.exe        Windows (signed through SignPath once that is set
+#                          up, see docs/SIGNING.md)
+#   make-covers-macos.zip  macOS app
+#   make-covers-linux      Linux (x86-64)
+# Started without arguments (double-clicked) they open the window; with
+# arguments they work as the command line tool.
+#
+# On the carousel branch they are published as the "make-covers-latest"
+# release, so the latest version is always at the same links:
 #   https://github.com/<owner>/<repo>/releases/download/make-covers-latest/make-covers.exe
+# The firmware release workflow also calls this to attach them to a version.
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     branches:
       - 'carousel'
@@ -21,8 +30,22 @@ permissions:
   contents: write     # Needed to publish the release
 
 jobs:
-  build-exe:
-    runs-on: windows-latest
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+          - os: macos-latest
+            name: macos
+          - os: ubuntu-24.04
+            name: linux
+    runs-on: ${{ matrix.os }}
+    env:
+      SIGN: ${{ matrix.name == 'windows' && secrets.SIGNPATH_API_TOKEN != '' }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -38,45 +61,103 @@ jobs:
       - name: Run the tool tests
         run: python tests/make_covers_test.py
 
-      - name: Build make-covers.exe
-        run: python -m PyInstaller --onefile --console --name make-covers --exclude-module tkinter --exclude-module unittest tools/make-covers.py
-
-      - name: Check that the exe runs
-        shell: bash
+      - name: Build
         run: |
-          ./dist/make-covers.exe --help
+          python -c "import tkinter"     # The window needs it, PyInstaller bundles it
+          case "${{ matrix.name }}" in
+            windows)
+              python -m PyInstaller --onefile --console --name make-covers --exclude-module unittest tools/make-covers.py
+              BIN=dist/make-covers.exe ;;
+            macos)
+              python -m PyInstaller --windowed --name make-covers --exclude-module unittest \
+                --osx-bundle-identifier io.github.superfw.makecovers tools/make-covers.py
+              BIN=dist/make-covers.app/Contents/MacOS/make-covers ;;
+            linux)
+              python -m PyInstaller --onefile --name make-covers --exclude-module unittest tools/make-covers.py
+              BIN=dist/make-covers ;;
+          esac
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
+
+      - name: Check that it runs
+        run: |
+          "$BIN" --help
           mkdir -p sdtest/GBA
-          ./dist/make-covers.exe sdtest --no-download
+          "$BIN" sdtest --no-download
 
-      - name: Checksum
-        shell: bash
+      - name: Package
         run: |
-          cd dist
-          sha256sum make-covers.exe > make-covers.exe.sha256
-          cat make-covers.exe.sha256
+          mkdir -p out
+          case "${{ matrix.name }}" in
+            windows) cp dist/make-covers.exe out/ ;;
+            macos)   (cd dist && ditto -c -k --keepParent make-covers.app ../out/make-covers-macos.zip) ;;
+            linux)   cp dist/make-covers out/make-covers-linux ;;
+          esac
 
-      - name: Upload artifact
+      - name: Upload unsigned build
+        id: upload
         uses: actions/upload-artifact@v7
         with:
-          name: make-covers-${{ github.sha }}
-          path: dist/make-covers.exe*
+          name: make-covers-${{ matrix.name }}-unsigned
+          path: out/*
 
+      # Code signing for the Windows .exe (free for open source projects through
+      # the SignPath Foundation). Skipped until the SIGNPATH_API_TOKEN secret
+      # and the SIGNPATH_* variables exist, see docs/SIGNING.md.
+      - name: Sign the .exe (SignPath)
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: out
+
+      - name: Upload final build
+        uses: actions/upload-artifact@v7
+        with:
+          name: make-covers-${{ matrix.name }}
+          path: out/*
+
+  publish-latest:
+    needs: build
+    if: github.ref == 'refs/heads/carousel'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: 'make-covers-*'
+          path: artifacts
       - name: Publish as the latest make-covers release
-        if: github.ref == 'refs/heads/carousel'
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SIGNED: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
         run: |
+          mkdir -p files
+          for n in windows macos linux; do cp artifacts/make-covers-$n/* files/; done
+          (cd files && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
           {
-            echo "make-covers.exe built from commit ${GITHUB_SHA::8} on $(date -u +%Y-%m-%d)."
+            echo "Cover maker for the SuperFW carousel, built from commit ${GITHUB_SHA::8} on $(date -u +%Y-%m-%d)."
             echo
-            echo "Copy it to the root of the SD card and double-click it: it makes the cover"
-            echo "files for every game on the card (it needs an internet connection)."
-            echo "Windows may warn that it is an unknown program (it is not signed):"
-            echo "More info -> Run anyway."
+            echo "- **Windows**: make-covers.exe"
+            echo "- **macOS**: make-covers-macos.zip (unzip, then right-click the app and choose Open the first time)"
+            echo "- **Linux**: make-covers-linux (run chmod +x make-covers-linux first)"
             echo
-            echo "SHA-256: $(cut -d' ' -f1 dist/make-covers.exe.sha256)"
-          } > notes.txt
+            echo "Double-click it: a window opens to pick the SD card. It finds the box art"
+            echo "for every game (internet connection needed), shows which art it picked and"
+            echo "a preview of each cover, and writes the cover files to the card."
+            echo "It also works from a terminal, see make-covers --help."
+            echo
+            if [ "$SIGNED" != "true" ]; then
+              echo "The programs are not signed yet: Windows may warn that it is an unknown"
+              echo "program (More info, then Run anyway)."
+              echo
+            fi
+            echo "SHA-256 checksums are in SHA256SUMS.txt."
+          } > notes.md
           gh release delete make-covers-latest --cleanup-tag --yes || true
-          gh release create make-covers-latest dist/make-covers.exe dist/make-covers.exe.sha256 \
-            --target "$GITHUB_SHA" --title "make-covers.exe (latest)" --notes-file notes.txt --latest=false
+          gh release create make-covers-latest files/* \
+            --target "$GITHUB_SHA" --title "Cover maker (latest)" --notes-file notes.md --latest=false

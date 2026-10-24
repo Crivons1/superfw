@@ -98,16 +98,29 @@ identify (hacks, homebrew, bad dumps) are matched by file name instead. Use
 `--images <folder>` to provide your own images (named like the ROM, ie.
 `Metroid Fusion (USA).png`), `--dry-run` to see the matches first,
 `--force` to regenerate covers and `--no-checksum` to skip reading the ROMs.
+`--gui` opens a window instead: pick the SD card, then it shows the progress,
+the box art picked for every game and a preview of each cover as the cart
+shows it.
 
-On Windows you can use it without Python: download
-[make-covers.exe](https://github.com/Crivons1/superfw/releases/download/make-covers-latest/make-covers.exe)
-(always the latest version, built by GitHub Actions; its SHA-256 is in
-[make-covers.exe.sha256](https://github.com/Crivons1/superfw/releases/download/make-covers-latest/make-covers.exe.sha256)),
-copy it to the SD card root and double-click it (it then works on its own
-folder). To build it yourself:
+Ready to use programs (no Python needed, always the latest version, built by
+GitHub Actions, checksums in
+[SHA256SUMS.txt](https://github.com/Crivons1/superfw/releases/download/make-covers-latest/SHA256SUMS.txt)):
+
+ - Windows: [make-covers.exe](https://github.com/Crivons1/superfw/releases/download/make-covers-latest/make-covers.exe)
+ - macOS: [make-covers-macos.zip](https://github.com/Crivons1/superfw/releases/download/make-covers-latest/make-covers-macos.zip)
+   (the first time, right-click the app and choose Open)
+ - Linux: [make-covers-linux](https://github.com/Crivons1/superfw/releases/download/make-covers-latest/make-covers-linux)
+   (`chmod +x` it first)
+
+Double-clicked they open the window (on Windows, if the .exe sits on the SD
+card it picks that card); with arguments they work like the Python script.
+To build one yourself:
 
     pip install pyinstaller pillow
     pyinstaller --onefile --console --name make-covers tools/make-covers.py
+
+Code signing of the .exe through the SignPath Foundation is prepared, see
+[docs/SIGNING.md](docs/SIGNING.md).
 
 `tools/carousel-preview.py` renders a PC preview of the tab. The carousel
 helpers (`src/carousel_util.c`) and both tools have tests: `make` in `tests/`
