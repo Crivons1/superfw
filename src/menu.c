@@ -1127,6 +1127,12 @@ void patch_gen_callback(bool confirm) {
 
 static void load_patchdb_action(bool confirm) {
   if (confirm) {
+    // It must fit its SDRAM area, or it would overwrite the assets after it
+    // (bundled emulators, language pack).
+    if (spop.p.pdb_ld.fs > PATCHDB_MAX_SIZE) {
+      spop.alert_msg = msgs[lang_id][MSG_ERR_TOOBIG];
+      return;
+    }
     FIL fd;
     FRESULT res = f_open(&fd, spop.p.pdb_ld.fn, FA_READ);
     if (res != FR_OK) {

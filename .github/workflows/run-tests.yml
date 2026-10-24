@@ -28,3 +28,26 @@ jobs:
         with:
           name: test-coverage-${{ steps.slug.outputs.sha8 }}
           path: tests/coverage/*
+
+  # Throws random/damaged inputs at the parsers of files read from the SD card
+  # (cheats, recent list, patches, NOR metadata, settings, utf-8 names), with
+  # address/undefined behaviour sanitizers. Any crash fails the run and the
+  # input that caused it is uploaded.
+  fuzz-parsers:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Install dependencies
+        run: sudo apt-get install clang
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Build and run the fuzzers
+        run: cd tests/fuzz && make run FUZZTIME=45
+      - name: Upload crash inputs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-crashes-${{ github.sha }}
+          path: |
+            tests/fuzz/crash-*
+            tests/fuzz/leak-*
+            tests/fuzz/timeout-*
