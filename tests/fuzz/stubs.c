@@ -7,6 +7,7 @@
 
 #include "fatfs/ff.h"
 #include "common.h"
+#include "flash.h"
 #include "fuzz.h"
 
 const uint8_t *fz_data = NULL;
@@ -84,6 +85,9 @@ bool flash_verify(uint32_t baseaddr, const uint8_t *buf, unsigned size) {
   (void)baseaddr; (void)buf; (void)size; return false;
 }
 bool flash_check_erased(uintptr_t addr, unsigned size) { (void)addr; (void)size; return false; }
+bool flash_erase_sector(uintptr_t addr) { (void)addr; return false; }
+// No flash chip detected: writes give up early, reads still parse the data.
+t_flash_info flashinfo;
 
 // From menu.c (used by settings.c)
 unsigned lang_lookup(uint16_t code) { (void)code; return 0; }
