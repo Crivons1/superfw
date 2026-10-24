@@ -2083,6 +2083,16 @@ static const t_centry *carousel_entry(int n) {
   return sdr_state->fileorder[sdr_state->carousel_idx[n]];
 }
 
+// Bounded copy of a game's file name (the list lives in SDRAM, which a failed
+// ROM load can trash, so never trust it to be NUL terminated).
+static void carousel_fname(int n, char out[MAX_FN_LEN]) {
+  const char *s = carousel_entry(n)->fname;
+  unsigned i = 0;
+  for (; i < MAX_FN_LEN - 1 && s[i]; i++)
+    out[i] = s[i];
+  out[i] = 0;
+}
+
 // Builds the game list from the ROM browser's current (filtered) dir.
 static void carousel_rebuild() {
   int cnt = 0, start = 0;
@@ -2108,10 +2118,11 @@ static void carousel_rebuild() {
 
 // Reads the cover file for a game into a cover slot (in SDRAM).
 static bool carousel_load_cover(int n, unsigned slot) {
-  const t_centry *e = carousel_entry(n);
+  char fname[MAX_FN_LEN];
   char path[sizeof(COVER_PATH) + MAX_FN_LEN + sizeof(COVER_EXT)];
+  carousel_fname(n, fname);
   strcpy(path, COVER_PATH);
-  strcat(path, e->fname);
+  strcat(path, fname);
   strcat(path, COVER_EXT);
 
   FIL fd;
@@ -2240,16 +2251,23 @@ void render_carousel(volatile uint8_t *frame) {
 
   // Game title (file name without extension) and type/size info.
   const t_centry *e = carousel_entry(smenu.carousel.selector);
-  char title[MAX_FN_LEN];
-  strcpy(title, e->fname);
+  char fname[MAX_FN_LEN], title[MAX_FN_LEN];
+  carousel_fname(smenu.carousel.selector, fname);
+  strcpy(title, fname);
   replace_extension(title, "");
+  // Hide "(USA, Europe)" / "[!]" style tags, they make most titles too long.
+  for (char *p = &title[1]; title[0] && *p; p++)
+    if ((*p == '(' || *p == '[') && p[-1] == ' ') {
+      p[-1] = 0;
+      break;
+    }
   if (font_width(title) <= SCREEN_WIDTH - 16)
     draw_central_text(title, frame, SCREEN_WIDTH / 2, 106);
   else
     draw_text_ovf_rotate(title, frame, 8, 106, SCREEN_WIDTH - 16, &smenu.anim_state);
 
   char ext[8] = {0}, szstr[16], info[32];
-  const char *fext = find_extension(e->fname);
+  const char *fext = find_extension(fname);
   for (unsigned i = 0; fext && fext[i] && i < sizeof(ext) - 1; i++)
     ext[i] = (fext[i] >= 'a' && fext[i] <= 'z') ? fext[i] - 'a' + 'A' : fext[i];
   human_size(szstr, sizeof(szstr), e->filesize);
@@ -3500,11 +3518,15 @@ static void keypress_menu_carousel(unsigned newkeys) {
   }
 
   if (newkeys & KEY_BUTTA) {
-    const t_centry *e = carousel_entry(sel);
-    char path[MAX_FN_LEN];
-    strcpy(path, smenu.browser.cpath);
-    strcat(path, e->fname);
-    browser_open(path, e->filesize);
+    char fname[MAX_FN_LEN], path[MAX_FN_LEN];
+    carousel_fname(sel, fname);
+    if (strlen(smenu.browser.cpath) + strlen(fname) >= sizeof(path))
+      spop.alert_msg = msgs[lang_id][MSG_ERR_READ];
+    else {
+      strcpy(path, smenu.browser.cpath);
+      strcat(path, fname);
+      browser_open(path, carousel_entry(sel)->filesize);
+    }
   }
 }
 

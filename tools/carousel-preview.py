@@ -174,6 +174,10 @@ def render(games, covers, sel, offset, cpath, theme, icons):
 
   fn, fs = games[sel]
   title = os.path.splitext(fn)[0]
+  for i in range(1, len(title)):     # Same tag stripping as the firmware
+    if title[i] in "([" and title[i - 1] == " ":
+      title = title[:i - 1]
+      break
   if text_width(title) <= W - 16:
     s.central(title, W // 2, 106)
   else:

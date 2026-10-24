@@ -48,6 +48,27 @@ the SD card (and supported by SuperFW).
 
 Check https://superfw.davidgf.net/docs/usermanual/emulators/ for details.
 
+Carousel (cover art) tab
+------------------------
+
+The carousel tab (the icon after the SD/NOR browsers) shows the games in the
+folder currently open in the SD browser as a row of box art covers. Use
+Left/Right to move between games, Up/Down to jump to the previous/next letter
+and A to open the game (same load options as the browser). L/R switch tabs.
+
+Covers are read from `/.superfw/covers/<rom file name>.cov` (for example
+`Metroid Fusion (USA).gba.cov`). Games without a cover show a plain card. To
+create the covers, run the PC tool with the SD card inserted (needs Python 3
+and Pillow, `pip install pillow`):
+
+    python tools/make-covers.py E:\
+
+It scans the whole card, downloads matching box art from the libretro
+thumbnails collection and writes the cover files. Use `--images <folder>` to
+provide your own images (named like the ROM, ie. `Metroid Fusion (USA).png`),
+`--dry-run` to see the matches first and `--force` to regenerate covers.
+`tools/carousel-preview.py` renders a PC preview of the tab.
+
 ROM patching
 ------------
 
