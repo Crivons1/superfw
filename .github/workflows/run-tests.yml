@@ -51,3 +51,20 @@ jobs:
             tests/fuzz/crash-*
             tests/fuzz/leak-*
             tests/fuzz/timeout-*
+
+  # Worst case stack depth of the menu firmware from GCC's call graph info.
+  # The stack lives in IWRAM next to .bss, so it must stay well under 16 KB.
+  stack-check:
+    runs-on: ubuntu-26.04
+    strategy:
+      matrix:
+        board: [sd, chis]
+    steps:
+      - name: Install dependencies
+        run: sudo apt-get install gcc-arm-none-eabi python3
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          submodules: 'true'
+      - name: Check stack usage
+        run: make BOARD=${{ matrix.board }} stack-check
