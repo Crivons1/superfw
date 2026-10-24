@@ -7,6 +7,16 @@ by their commit. Every release has the firmware for the three boards
 (`superfw-sd.fw`, `superfw-lite.fw`, `superfw-chis.fw`) and the cover maker
 for Windows, macOS and Linux.
 
+## Unreleased
+
+- **Carousel view (Start):** show all games, the favourites or one system
+  (GBA, GB/GBC, NES, SMS...), sorted by name, by system (Up/Down jump between
+  systems) or by recently played. Remembered in `ui-settings.txt`.
+- **Favourites:** Select > Add to / Remove from favourites, kept in
+  `/.superfw/favorites.txt` (one full path per line), shown in the info line.
+- The menu's key handlers are compiled for size: the SD board's firmware has
+  very little flash left (340 bytes).
+
 ## v0.21-carousel.2
 
 Same upstream base as v0.21-carousel.1.
