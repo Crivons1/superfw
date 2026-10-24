@@ -70,16 +70,6 @@ int carousel_namecmp(const char *a, const char *b);
 // Sort key (folded first character) used for the letter jumps.
 unsigned carousel_letter_key(const char *fname);
 
-// Builds dir + name + suffix into out (MAX_FN_LEN). False if it does not fit.
-bool path_join(char *out, const char *dir, const char *name, const char *suffix);
-
-// Longest ROM paths accepted. Save, backup, savestate, config and patch file
-// names are derived from them (adding a dir prefix and/or a suffix) using
-// MAX_FN_LEN buffers, so leave room for those.
-#define MAX_ROM_PATH_LEN       (MAX_FN_LEN - 16)
-#define MAX_ROM_BASENAME_LEN   (MAX_FN_LEN - 32)
-bool rom_path_ok(const char *fn);
-
 // FNV-1a hash, used to detect changes in the game list.
 #define CAROUSEL_HASH_INIT  0x811C9DC5U
 uint32_t carousel_hash(uint32_t h, const void *data, unsigned len);

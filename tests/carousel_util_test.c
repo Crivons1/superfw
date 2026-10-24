@@ -22,6 +22,7 @@
 #include <assert.h>
 
 #include "carousel_util.h"
+#include "util.h"
 
 #include "fatfs/ff.h"
 

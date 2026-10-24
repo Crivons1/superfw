@@ -88,19 +88,6 @@ unsigned carousel_letter_key(const char *fname) {
   return *fname ? unicodeorder(utf8_decode(fname)) : 0;
 }
 
-bool path_join(char *out, const char *dir, const char *name, const char *suffix) {
-  if (strlen(dir) + strlen(name) + strlen(suffix) >= MAX_FN_LEN)
-    return false;
-  strcpy(out, dir);
-  strcat(out, name);
-  strcat(out, suffix);
-  return true;
-}
-
-bool rom_path_ok(const char *fn) {
-  return strlen(fn) <= MAX_ROM_PATH_LEN && strlen(file_basename(fn)) <= MAX_ROM_BASENAME_LEN;
-}
-
 uint32_t carousel_hash(uint32_t h, const void *data, unsigned len) {
   const uint8_t *p = (const uint8_t*)data;
   for (unsigned i = 0; i < len; i++) {
