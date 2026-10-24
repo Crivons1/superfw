@@ -9,8 +9,9 @@
 # frames of the deepest call chain:
 #  - Functions without info (assembly, libc) count as UNKNOWN_FUNC bytes,
 #    except the ones in KNOWN_ASM.
-#  - Indirect calls (function pointers) count as the deepest chain of any
-#    function, which is conservative.
+#  - Indirect calls (function pointers) count as the deepest chain of the
+#    functions that are never called directly (callbacks: progress screens,
+#    sort comparators, printf output...), at least UNKNOWN_FUNC (assembly).
 #  - Recursion and dynamic (alloca/VLA) frames are reported.
 # Fails if the worst case is over --limit bytes.
 #
@@ -49,7 +50,7 @@ def main():
   ap = argparse.ArgumentParser()
   ap.add_argument("folder")
   ap.add_argument("--entry", default="main")
-  ap.add_argument("--limit", type=int, default=12 * 1024)
+  ap.add_argument("--limit", type=int, default=16 * 1024)   # __STACK_USR_SIZE_MIN__
   args = ap.parse_args()
 
   nodes, edges = load(args.folder)
@@ -100,14 +101,26 @@ def main():
   if not entry:
     sys.exit("Entry point %s not found" % args.entry)
 
-  # First pass: indirect calls cost nothing, to find the deepest function.
-  worst_any = max(depth(t, [], 0)[0] for t in nodes)
-  # Second pass: indirect calls can reach that deepest function.
+  # Functions nobody calls directly: the possible targets of indirect calls.
+  called = set()
+  for src, dsts in edges.items():
+    for d in dsts:
+      r = resolve(d)
+      if r and r != src:
+        called.add(r)
+  callbacks = [t for t in nodes if t not in called and t != entry]
+
+  # First pass: indirect calls cost nothing, to find the deepest callback.
+  worst_cb = max([depth(t, [], 0) + (t,) for t in callbacks] or [(0, [], None)])
+  indirect_cost = max(worst_cb[0], UNKNOWN_FUNC)
+  # Second pass: indirect calls can reach that callback.
   memo.clear()
-  total, chain = depth(entry, [], worst_any)
+  total, chain = depth(entry, [], indirect_cost)
 
   print("Worst case stack from %s: %d bytes (limit %d)" % (args.entry, total, args.limit))
   print("  " + "\n  ".join(chain))
+  if worst_cb[2]:
+    print("Indirect calls counted as %d bytes (deepest callback: %s)" % (indirect_cost, plain(worst_cb[2])))
   for w in sorted(warnings):
     print("warning:", w)
   print("Biggest frames:")

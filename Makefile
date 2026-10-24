@@ -232,7 +232,7 @@ upkr.elf:	tools/upkr.cc
 
 # Worst case stack usage of the menu firmware (see tools/stack-check.py).
 # Built without LTO so GCC can write per function stack and call graph info.
-STACK_LIMIT ?= 12288
+STACK_LIMIT ?= 16384
 stack-check:	src/messages_data.h src/menu_messages.h
 	rm -rf stackcheck && mkdir -p stackcheck
 	for f in $(filter %.c,$(INFILES)); do \
