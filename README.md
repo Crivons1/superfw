@@ -248,20 +248,6 @@ and perform certain actions such as:
   - Creating and restoring savestates
   - Applying/using cheat codes
   - Changing the RTC time (for games that use an RTC)
-  - Reading a guide for the game (SuperChis and Lite)
-
-### Guide reader
-
-Put a text file named like the ROM next to it (`Pokemon - Emerald Version
-(USA).gba` -> `Pokemon - Emerald Version (USA).txt`) and the in-game menu shows
-a **Guide** option: any plain text file works (walkthroughs, FAQs, your own
-notes). Long lines are wrapped to the screen and the file is read from the SD
-card a little at a time, so large guides work too. Up/Down move a line,
-Left/Right (or L/R) a page, B goes back to the menu. The position is kept in
-`/.superfw/guide.pos`, also after turning the console off. Not on the SD board
-(Supercard SD): its firmware flash is full.
-
-![Guide reader (preview)](docs/images/igm-guide.png)
 
 This menu is a bit of a hack that requires patching the ROM to work. For this
 reason, some games won't work well with it or will suffer from bugs (usually

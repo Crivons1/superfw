@@ -74,12 +74,11 @@
 .globl spill_addr
 .globl savefile_pattern
 .globl savestate_pattern
-.globl guide_path
 
 def_symbol(ingame_menu):
   // Writes address 0x03007ffc (actually mirror 0x03fffffc) with the ingame
   // menu address (following routine). Resumes ROM startup execution.
-  adrl r0, ingame_menu_entrypoint_nocheats   // Two instructions: it is too far for adr
+  adr r0, ingame_menu_entrypoint_nocheats
   mov r1, $0x04000000
   str r0, [r1, #-4]
 
@@ -87,6 +86,7 @@ def_symbol(ingame_menu):
   mov r0, $0x08000000
   ldr pc, [r0, #0xB8]          // Reserved area, contains start address.
 
+  nop
   nop
   nop
 
@@ -129,7 +129,6 @@ savefile_size:         .word 0x0    // .sav file size (0: the whole SRAM)
 
 savefile_pattern:      .fill 256, 1, 0          // File name pattern (NULL terminated)
 savestate_pattern:     .fill 256, 1, 0          // File name pattern (NULL terminated)
-guide_path:            .fill 256, 1, 0          // Guide (text file) for the guide reader, or empty
 
 
 // Necessary handlers for the SC driver

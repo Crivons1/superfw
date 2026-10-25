@@ -286,7 +286,6 @@ en_menu_strings = [
   "IMENU_MAIN3_SSTATE":     "Savestates",
   "IMENU_MAIN4_RTC":        "RTC clock",
   "IMENU_MAIN5_CHEATS":     "Cheats",
-  "IMENU_MAIN6_GUIDE":      "Guide",
 
   "IMENU_GOBACK":           "Go back",
   "IMENU_UPDAT_RTC":        "Update RTC clock",

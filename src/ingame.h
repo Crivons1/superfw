@@ -59,7 +59,6 @@ typedef struct {
   uint32_t savefile_size;              // .sav file size (0: the whole SRAM)
   char savefile_pattern[256];          // File name (without the .sav) pattern
   char statefile_pattern[256];         // File name (without the .X.state) pattern
-  char guide_path[256];                // Guide reader: <rom name>.txt next to the ROM, or empty
 } t_igmenu;
 
 // Built-in assets

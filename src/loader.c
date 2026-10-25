@@ -116,19 +116,11 @@ void fix_gba_header(volatile uint16_t *header) {
 // addr must be 4 byte aligned.
 void load_ingame_menu(
   uint32_t base_addr, uint32_t total_size, bool useds,
-  const char* savefn, const char* statefn, const char *romfn,
+  const char* savefn, const char* statefn,
   bool rtc_patches, unsigned cheats
 ) {
   const unsigned menu_size = ingame_menu_payload.menu_rsize;
   const unsigned fontsz = font_block_size();
-
-  // Guide reader: a text file next to the ROM, with the same name. Looked up
-  // now: the SD card is not mapped below, its accesses would go to the SDRAM
-  // (and overwrite the menu, which is placed right after big ROMs).
-  #ifdef IGM_GUIDE
-  char guidefn[MAX_FN_LEN];
-  bool has_guide = path_join_ext(guidefn, "", romfn, ".txt") && check_file_exists(guidefn);
-  #endif
 
   set_supercard_mode(MAPPED_SDRAM, true, false);
 
@@ -174,12 +166,6 @@ void load_ingame_menu(
     memset32(igm->savefile_pattern, 0, sizeof(igm->savefile_pattern));
 
   memcpy32(igm->statefile_pattern, statefn, sizeof(igm->statefile_pattern));
-
-  memset32(igm->guide_path, 0, sizeof(igm->guide_path));
-  #ifdef IGM_GUIDE
-  if (has_guide)
-    memcpy32(igm->guide_path, guidefn, sizeof(igm->guide_path));
-  #endif
 
   set_supercard_mode(MAPPED_SDRAM, true, true);
 }
@@ -277,7 +263,7 @@ unsigned load_gba_rom(
   if (ingame_menu) {
     char sfn[MAX_FN_LEN];
     savestate_filename_calc(fn, sfn);
-    load_ingame_menu(igm_addr, igm_space, dsinfo, savefn, sfn, fn, use_rtc_patches, cheats);
+    load_ingame_menu(igm_addr, igm_space, dsinfo, savefn, sfn, use_rtc_patches, cheats);
   }
 
   // Proceed to load the ROM
@@ -508,7 +494,7 @@ unsigned launch_gba_nor(
   if (ingame_menu) {
     char sfn[MAX_FN_LEN];
     savestate_filename_calc(romfn, sfn);
-    load_ingame_menu(igm_addr, igm_space, dsinfo, savefn, sfn, romfn, use_rtc_patches, cheats);
+    load_ingame_menu(igm_addr, igm_space, dsinfo, savefn, sfn, use_rtc_patches, cheats);
   }
 
   if (dsinfo)
