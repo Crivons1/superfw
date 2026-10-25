@@ -7,6 +7,14 @@ by their commit. Every release has the firmware for the three boards
 (`superfw-sd.fw`, `superfw-lite.fw`, `superfw-chis.fw`) and the cover maker
 for Windows, macOS and Linux.
 
+## Unreleased
+
+- **Cover maker adds cheats:** it downloads the SuperFW cheat database and
+  copies the cheats of the GBA games on the card to `/.superfw/cheats/`
+  (existing files are kept; `--no-cheats` skips it).
+- **Cover maker copies the firmware:** `--firmware chis|sd|lite` (or the
+  window's Firmware option) puts the latest release's firmware on the card.
+
 ## v0.21-carousel.3
 
 Same upstream base as v0.21-carousel.1.
