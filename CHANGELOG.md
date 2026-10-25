@@ -11,7 +11,13 @@ for Windows, macOS and Linux.
 
 - **Cover maker adds cheats:** it downloads the SuperFW cheat database and
   copies the cheats of the GBA games on the card to `/.superfw/cheats/`
-  (existing files are kept; `--no-cheats` skips it).
+  (existing files are kept; `--no-cheats` skips it). Games the database does
+  not have (Pokemon Emerald, for one) get libretro's Code Breaker cheats,
+  converted to SuperFW's format (same game, region and revision only; master
+  and patch codes left out).
+- **Guide reader** (SuperChis and Lite): a `.txt` named like the ROM adds a
+  Guide option to the in-game menu, with word wrap, page keys and the
+  position remembered in `/.superfw/guide.pos`.
 - **Cover maker copies the firmware:** `--firmware chis|sd|lite` (or the
   window's Firmware option) puts the latest release's firmware on the card.
 

@@ -158,8 +158,13 @@ It also adds the cheats of the GBA games on the card: it downloads the
 SuperFW cheat database (https://github.com/davidgfnet/superfw-cheats, kept in
 its cache for when there is no internet) and copies the files for those games
 to `/.superfw/cheats/` (named `<game code>-<version>.cht`, as SuperFW looks for
-them). Cheat files already on the card are never overwritten, so edited ones
-are kept; `--no-cheats` skips this. With `--firmware chis` (or `sd`, `lite`)
+them). Games that database does not have (Pokemon Emerald, for one) get
+libretro's Code Breaker cheats instead
+(https://github.com/libretro/libretro-database), converted with the database's
+own rules: only plain Code Breaker codes that write to RAM, no master codes
+and, for now, no patch codes (opcode 5). Only cheats for the same game, region
+and revision are used. Cheat files already on the card are never overwritten,
+so edited ones are kept; `--no-cheats` skips this. With `--firmware chis` (or `sd`, `lite`)
 it also copies the latest SuperFW firmware for that board to the card root,
 ready to be flashed from the SD browser. The window has both options too.
 
@@ -244,6 +249,20 @@ and perform certain actions such as:
   - Creating and restoring savestates
   - Applying/using cheat codes
   - Changing the RTC time (for games that use an RTC)
+  - Reading a guide for the game (SuperChis and Lite)
+
+### Guide reader
+
+Put a text file named like the ROM next to it (`Pokemon - Emerald Version
+(USA).gba` -> `Pokemon - Emerald Version (USA).txt`) and the in-game menu shows
+a **Guide** option: any plain text file works (walkthroughs, FAQs, your own
+notes). Long lines are wrapped to the screen and the file is read from the SD
+card a little at a time, so large guides work too. Up/Down move a line,
+Left/Right (or L/R) a page, B goes back to the menu. The position is kept in
+`/.superfw/guide.pos`, also after turning the console off. Not on the SD board
+(Supercard SD): its firmware flash is full.
+
+![Guide reader (preview)](docs/images/igm-guide.png)
 
 This menu is a bit of a hack that requires patching the ROM to work. For this
 reason, some games won't work well with it or will suffer from bugs (usually
