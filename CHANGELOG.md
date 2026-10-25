@@ -14,7 +14,13 @@ for Windows, macOS and Linux.
   (existing files are kept; `--no-cheats` skips it). Games the database does
   not have (Pokemon Emerald, for one) get libretro's Code Breaker cheats,
   converted to SuperFW's format (same game, region and revision only; master
-  and patch codes left out).
+  codes left out).
+- **Fix: patch cheat codes (opcode 5).** The loader took `cccc` as the
+  number of data codes, so the real code after a patch code was swallowed and
+  byte-swapped (and a patch code near the end of a cheat made the whole file
+  fail to load); the runner also wrote a wrong value for the second halfword
+  of every data code. Now `cccc` halfwords, three per data code, as Code
+  Breaker, mGBA and VBA-M; zero length patch codes are rejected.
 - **Guide reader** (SuperChis and Lite): a `.txt` named like the ROM adds a
   Guide option to the in-game menu, with word wrap, page keys and the
   position remembered in `/.superfw/guide.pos`.
