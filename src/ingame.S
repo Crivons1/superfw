@@ -79,7 +79,7 @@
 def_symbol(ingame_menu):
   // Writes address 0x03007ffc (actually mirror 0x03fffffc) with the ingame
   // menu address (following routine). Resumes ROM startup execution.
-  adr r0, ingame_menu_entrypoint_nocheats
+  adrl r0, ingame_menu_entrypoint_nocheats   // Two instructions: it is too far for adr
   mov r1, $0x04000000
   str r0, [r1, #-4]
 
@@ -87,7 +87,6 @@ def_symbol(ingame_menu):
   mov r0, $0x08000000
   ldr pc, [r0, #0xB8]          // Reserved area, contains start address.
 
-  nop
   nop
   nop
 
