@@ -7,7 +7,12 @@ by their commit. Every release has the firmware for the three boards
 (`superfw-sd.fw`, `superfw-lite.fw`, `superfw-chis.fw`) and the cover maker
 for Windows, macOS and Linux.
 
-## Unreleased
+## v0.21-carousel.5
+
+Same upstream base as v0.21-carousel.1. Cover maker 1.4.0. Replaces
+v0.21-carousel.4, whose in-game menu could freeze: everything from it
+(cheats from libretro, the patch code fix, the firmware copy) except the
+guide reader.
 
 - **Guide reader removed.** It froze the in-game menu on the cart (seen with
   Pokemon Emerald), so the firmware is back to v0.21-carousel.3's in-game
