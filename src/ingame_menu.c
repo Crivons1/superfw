@@ -47,6 +47,7 @@ extern uint32_t menu_anim_speed;
 extern uint16_t ingame_menu_palette[8];
 extern uint32_t savefile_backups;                // Num of save backups to create
 extern uint32_t savefile_size;                   // .sav file size (0: the whole SRAM)
+extern char guide_path[];                        // Guide (text file) for the reader, or empty
 extern uint32_t scratch_base, scratch_size;      // Space to write snapshots (in memory)
 extern uint32_t spill_addr;                      // Spill buffer that gets reloaded on IGM exit
 extern char savefile_pattern[256];
@@ -800,8 +801,6 @@ typedef unsigned (*menu_getoptcnt_fn)();
 #define GUIDE_WIDTH     (SCREEN_WIDTH - 2 * GUIDE_LEFT)
 #define GUIDE_CHUNK     1024
 #define GUIDE_POS_FILE  "/.superfw/guide.pos"
-
-extern char guide_path[];       // From the loader ("": this game has no guide)
 
 typedef struct {
   FIL fd;
