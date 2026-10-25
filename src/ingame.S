@@ -74,6 +74,7 @@
 .globl spill_addr
 .globl savefile_pattern
 .globl savestate_pattern
+.globl guide_path
 
 def_symbol(ingame_menu):
   // Writes address 0x03007ffc (actually mirror 0x03fffffc) with the ingame
@@ -129,6 +130,7 @@ savefile_size:         .word 0x0    // .sav file size (0: the whole SRAM)
 
 savefile_pattern:      .fill 256, 1, 0          // File name pattern (NULL terminated)
 savestate_pattern:     .fill 256, 1, 0          // File name pattern (NULL terminated)
+guide_path:            .fill 256, 1, 0          // Guide (text file) for the guide reader, or empty
 
 
 // Necessary handlers for the SC driver

@@ -24,6 +24,7 @@
 #include "cheats.h"
 #include "nanoprintf.h"
 #include "fonts/font_render.h"
+#include "utf_util.h"
 #include "menu_messages.h"
 #include "res/logo.h"
 #include "fatfs/ff.h"
@@ -603,16 +604,27 @@ void draw_popup(uint8_t *fb) {
   selbarpos = NOSELBAR;   // Disable bar to ensure we do not overdraw
 }
 
+#ifdef IGM_GUIDE
+  #define MAIN_OPTS   7
+  #define MAIN_ROWH  17          // Seven options fit
+#else
+  #define MAIN_OPTS   6
+  #define MAIN_ROWH  19
+#endif
+
 void draw_main_menu(uint8_t *fb, unsigned framen) {
   bool havess = num_mem_savestates || num_dsk_savestates;
-  draw_text(msgs[ingame_menu_lang][IMENU_MAIN0_BACK_GAME],  fb, 24, 36 + 19*0, HI_COLOR);
-  draw_text(msgs[ingame_menu_lang][IMENU_MAIN1_RESET],      fb, 24, 36 + 19*1, HI_COLOR);
-  draw_text(msgs[ingame_menu_lang][IMENU_MAIN2_FLUSH_SAVE], fb, 24, 36 + 19*2, !savefile_pattern[0] ? SH_COLOR : HI_COLOR);
-  draw_text(msgs[ingame_menu_lang][IMENU_MAIN3_SSTATE],     fb, 24, 36 + 19*3, !havess ? SH_COLOR : HI_COLOR);
-  draw_text(msgs[ingame_menu_lang][IMENU_MAIN4_RTC],        fb, 24, 36 + 19*4, !has_rtc_support ? SH_COLOR : HI_COLOR);
-  draw_text(msgs[ingame_menu_lang][IMENU_MAIN5_CHEATS],     fb, 24, 36 + 19*5, !cheat_base_addr ? SH_COLOR : HI_COLOR);
+  draw_text(msgs[ingame_menu_lang][IMENU_MAIN0_BACK_GAME],  fb, 24, 36 + MAIN_ROWH*0, HI_COLOR);
+  draw_text(msgs[ingame_menu_lang][IMENU_MAIN1_RESET],      fb, 24, 36 + MAIN_ROWH*1, HI_COLOR);
+  draw_text(msgs[ingame_menu_lang][IMENU_MAIN2_FLUSH_SAVE], fb, 24, 36 + MAIN_ROWH*2, !savefile_pattern[0] ? SH_COLOR : HI_COLOR);
+  draw_text(msgs[ingame_menu_lang][IMENU_MAIN3_SSTATE],     fb, 24, 36 + MAIN_ROWH*3, !havess ? SH_COLOR : HI_COLOR);
+  draw_text(msgs[ingame_menu_lang][IMENU_MAIN4_RTC],        fb, 24, 36 + MAIN_ROWH*4, !has_rtc_support ? SH_COLOR : HI_COLOR);
+  draw_text(msgs[ingame_menu_lang][IMENU_MAIN5_CHEATS],     fb, 24, 36 + MAIN_ROWH*5, !cheat_base_addr ? SH_COLOR : HI_COLOR);
+  #ifdef IGM_GUIDE
+  draw_text(msgs[ingame_menu_lang][IMENU_MAIN6_GUIDE],      fb, 24, 36 + MAIN_ROWH*6, !guide_path[0] ? SH_COLOR : HI_COLOR);
+  #endif
 
-  selbarpos = 36 + 19*copt;
+  selbarpos = 36 + MAIN_ROWH*copt;
 }
 
 void draw_reset_menu(uint8_t *fb, unsigned framen) {
@@ -771,11 +783,208 @@ void draw_states_menu(uint8_t *fb, unsigned framen) {
 }
 
 
-enum { MenuMain = 0, MenuReset = 1, MenuSave = 2, MenuSState = 3, MenuRTC = 4, MenuCheats = 5 };
+enum { MenuMain = 0, MenuReset = 1, MenuSave = 2, MenuSState = 3, MenuRTC = 4, MenuCheats = 5, MenuGuide = 6 };
 typedef void(*menu_draw_fn)(uint8_t *fb, unsigned framen);
 typedef void(*menu_key_fn)(uint16_t keyp);
 typedef bool(*menu_action_fn)();
 typedef unsigned (*menu_getoptcnt_fn)();
+
+#ifdef IGM_GUIDE
+// ---- Guide reader: <rom name>.txt next to the ROM (path from the loader) ----
+// The file is read 1 KiB at a time (a screen needs less), so any size works.
+// The position is kept in GUIDE_POS_FILE ("<offset>\n<guide path>").
+
+#define GUIDE_LINES     9
+#define GUIDE_TOP       4
+#define GUIDE_LEFT      4
+#define GUIDE_WIDTH     (SCREEN_WIDTH - 2 * GUIDE_LEFT)
+#define GUIDE_CHUNK     1024
+#define GUIDE_POS_FILE  "/.superfw/guide.pos"
+
+extern char guide_path[];       // From the loader ("": this game has no guide)
+
+typedef struct {
+  FIL fd;
+  uint32_t size;                // File size
+  uint32_t top;                 // Offset of the first line shown
+  char buf[GUIDE_CHUNK + 1];    // Text from top on
+} t_guide;
+static t_guide *guide;          // In ingame_menu_loop()'s stack while the menu is open
+
+// Reads up to GUIDE_CHUNK bytes at off (line breaks kept, other control
+// characters as spaces). Returns the bytes read.
+static unsigned guide_read(uint32_t off) {
+  UINT rd = 0;
+  if (FR_OK != f_lseek(&guide->fd, off) || FR_OK != f_read(&guide->fd, guide->buf, GUIDE_CHUNK, &rd))
+    rd = 0;
+  for (unsigned i = 0; i < rd; i++)
+    if ((uint8_t)guide->buf[i] < ' ' && guide->buf[i] != '\n')
+      guide->buf[i] = ' ';
+  guide->buf[rd] = 0;
+  return rd;
+}
+
+// One screen line at p (word wrapped): returns the bytes to show, and in
+// *adv the bytes up to the next line (0 at the end of the text).
+static unsigned guide_line(const char *p, unsigned *adv) {
+  unsigned n = 0;
+  while (p[n] && p[n] != '\n')
+    n++;
+  char tmp[256];
+  const unsigned c = MIN(n, sizeof(tmp) - 1);
+  memcpy(tmp, p, c);
+  tmp[c] = 0;
+  const unsigned fit = font_width_cap(tmp, GUIDE_WIDTH);
+  if (fit >= n) {
+    *adv = n + (p[n] == '\n');
+    return n;
+  }
+  unsigned brk = fit;           // Break at the last space that fits
+  while (brk && p[brk] != ' ')
+    brk--;
+  if (!brk)
+    brk = fit ? fit : utf8_chlen(p);
+  *adv = brk + (p[brk] == ' ');
+  return brk;
+}
+
+static void guide_load(uint32_t top) {
+  guide->top = top;
+  guide_read(top);
+}
+
+// Offset of the line n lines below the top one (it stops at the last line).
+static uint32_t guide_down(unsigned n) {
+  const char *p = guide->buf;
+  uint32_t off = guide->top;
+  for (unsigned i = 0; i < n; i++) {
+    unsigned adv;
+    guide_line(p, &adv);
+    if (!adv || off + adv >= guide->size)
+      break;
+    p += adv;
+    off += adv;
+  }
+  return off;
+}
+
+// Offset of the line above the one at off (uses the buffer).
+static uint32_t guide_up(uint32_t off) {
+  if (!off)
+    return 0;
+  // The paragraph of the previous line starts after the last line break
+  // before it (or, for a very long one, about half a chunk before).
+  const uint32_t from = off > GUIDE_CHUNK / 2 ? off - GUIDE_CHUNK / 2 : 0;
+  const unsigned end = MIN(guide_read(from), off - from);
+  unsigned i = end ? end - 1 : 0;
+  while (i > 0 && guide->buf[i - 1] != '\n')
+    i--;
+  uint32_t cur = from + i;
+
+  // Wrap it forward up to off: its last line is the one above.
+  guide_read(cur);
+  const char *p = guide->buf;
+  while (1) {
+    unsigned adv;
+    guide_line(p, &adv);
+    if (!adv || cur + adv >= off)
+      return cur;
+    p += adv;
+    cur += adv;
+  }
+}
+
+static uint32_t guide_saved_pos() {
+  FIL fd;
+  char tmp[16 + 256];
+  UINT rd = 0;
+  if (FR_OK != f_open(&fd, GUIDE_POS_FILE, FA_READ))
+    return 0;
+  f_read(&fd, tmp, sizeof(tmp) - 1, &rd);
+  f_close(&fd);
+  tmp[rd] = 0;
+
+  uint32_t off = 0;
+  const char *p = tmp;
+  while (*p >= '0' && *p <= '9')
+    off = off * 10 + (*p++ - '0');
+  if (*p != '\n' || strcmp(p + 1, guide_path) || off >= guide->size)
+    return 0;                   // Another guide, or a damaged file
+  return off;
+}
+
+static void guide_save_pos() {
+  FIL fd;
+  char tmp[16 + 256];
+  UINT wr;
+  set_supercard_mode(MAPPED_SDRAM, true, true);
+  npf_snprintf(tmp, sizeof(tmp), "%u\n%s", (unsigned)guide->top, guide_path);
+  if (FR_OK == f_open(&fd, GUIDE_POS_FILE, FA_WRITE | FA_CREATE_ALWAYS)) {
+    f_write(&fd, tmp, strlen(tmp), &wr);
+    f_close(&fd);
+  }
+  set_supercard_mode(MAPPED_SDRAM, true, false);
+}
+
+void draw_guide(uint8_t *fb, unsigned framen) {
+  // The whole screen for text: clear the logo too.
+  memory_set16((uint16_t*)fb, dup8(BG_COLOR), SCREEN_WIDTH * 36 / 2);
+  const char *p = guide->buf;
+  for (unsigned i = 0; i < GUIDE_LINES && *p; i++) {
+    char tmp[256];
+    unsigned adv, n = MIN(guide_line(p, &adv), sizeof(tmp) - 1);
+    memcpy(tmp, p, n);
+    tmp[n] = 0;
+    draw_text(tmp, fb, GUIDE_LEFT, GUIDE_TOP + 16 * i, HI_COLOR);
+    if (!adv)
+      break;
+    p += adv;
+  }
+
+  // Position in the file.
+  const unsigned track = SCREEN_WIDTH - 16;
+  const unsigned x = guide->size ? (guide->top / 16) * (track - 8) / (guide->size / 16 + 1) : 0;
+  draw_hline(fb, 8, 154, track, SH_COLOR);
+  draw_hline(fb, 8 + (x & ~1), 154, 8, HI_COLOR);
+  selbarpos = NOSELBAR;
+}
+
+void guide_key(uint16_t keyp) {
+  if (!(keyp & (KEY_BUTTUP | KEY_BUTTDOWN | KEY_BUTTLEFT | KEY_BUTTRIGHT | KEY_BUTTL | KEY_BUTTR)))
+    return;
+  set_supercard_mode(MAPPED_SDRAM, true, true);
+  uint32_t top = guide->top;
+  if (keyp & KEY_BUTTDOWN)
+    top = guide_down(1);
+  else if (keyp & (KEY_BUTTRIGHT | KEY_BUTTR))
+    top = guide_down(GUIDE_LINES - 1);
+  else if (keyp & KEY_BUTTUP)
+    top = guide_up(top);
+  else
+    for (unsigned i = 0; i < GUIDE_LINES - 1; i++)
+      top = guide_up(top);
+  guide_load(top);              // guide_up() used the buffer
+  set_supercard_mode(MAPPED_SDRAM, true, false);
+}
+
+bool action_guide() {
+  if (!guide_path[0])
+    return false;
+  if (FR_OK != f_open(&guide->fd, guide_path, FA_READ)) {
+    popup.msg = msgs[ingame_menu_lang][IMENU_WSTAR_ERR];
+    return false;
+  }
+  guide->size = f_size(&guide->fd);
+  guide_load(guide_saved_pos());
+  submenu = MenuGuide;
+  copt = 0;
+  return false;
+}
+
+const menu_action_fn guideacts[] = {
+  NULL,
+};
+#endif
 
 bool action_resume_game() {
   return true;
@@ -1086,6 +1295,9 @@ const menu_action_fn mainacts[] = {
   action_sstate_menu,
   action_rtc_menu,
   action_cheats_menu,
+  #ifdef IGM_GUIDE
+  action_guide,
+  #endif
 };
 const menu_action_fn resetacts[] = {
   action_reset_game,
@@ -1132,12 +1344,15 @@ typedef struct {
 } t_menu_def;
 
 const t_menu_def menudata [] = {
-  { draw_main_menu,   mainacts,   NULL,   6, NULL,  true },
+  { draw_main_menu,   mainacts,   NULL,   MAIN_OPTS, NULL,  true },
   { draw_reset_menu,  resetacts,  NULL,   4, NULL,  true },
   { draw_save_menu,   saveacts,   NULL,   4, NULL,  true },
   { draw_states_menu, statesacts, sstkey, 3, NULL,  true },
   { draw_rtc_menu,    rtcacts,    rtckey, 7, NULL, false },
   { draw_cheats_menu, cheatsacts, NULL,   0, cheats_cnt,  true },
+  #ifdef IGM_GUIDE
+  { draw_guide,       guideacts,  guide_key, 1, NULL, true },
+  #endif
 };
 
 void setup_video_frame() {
@@ -1223,6 +1438,11 @@ void ingame_menu_blocked(uint32_t *use_cheats_hook) {
 void ingame_menu_loop(uint32_t *use_cheats_hook) {
   setup_video_frame();
 
+  #ifdef IGM_GUIDE
+  t_guide guide_mem;            // ~1.6 KiB, only while the menu is open
+  guide = &guide_mem;
+  #endif
+
   unsigned framen = 0;
 
   num_mem_savestates = MIN(MAX_MEM_SLOTS, (scratch_size >> 10) / SAVESTATE_SIZE_KB);
@@ -1277,6 +1497,10 @@ void ingame_menu_loop(uint32_t *use_cheats_hook) {
         popup.opt ^= 1;
     } else {
       if (submenu != 0 && pressed & KEY_BUTTB) {
+        #ifdef IGM_GUIDE
+        if (submenu == MenuGuide)
+          guide_save_pos();
+        #endif
         submenu = 0;
         copt = 0;
       }
