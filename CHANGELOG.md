@@ -7,6 +7,13 @@ by their commit. Every release has the firmware for the three boards
 (`superfw-sd.fw`, `superfw-lite.fw`, `superfw-chis.fw`) and the cover maker
 for Windows, macOS and Linux.
 
+## Unreleased
+
+- **Fix: in-game menu broken with the guide reader.** The loader looked for
+  the guide file while the SD card was not mapped, so its SD commands went to
+  the SDRAM: loading was slow and, for big ROMs (16 MiB, like Pokemon
+  Emerald), they overwrote the in-game menu, which froze when opened.
+
 ## v0.21-carousel.4
 
 Same upstream base as v0.21-carousel.1. Cover maker 1.3.1.

@@ -122,6 +122,14 @@ void load_ingame_menu(
   const unsigned menu_size = ingame_menu_payload.menu_rsize;
   const unsigned fontsz = font_block_size();
 
+  // Guide reader: a text file next to the ROM, with the same name. Looked up
+  // now: the SD card is not mapped below, its accesses would go to the SDRAM
+  // (and overwrite the menu, which is placed right after big ROMs).
+  #ifdef IGM_GUIDE
+  char guidefn[MAX_FN_LEN];
+  bool has_guide = path_join_ext(guidefn, "", romfn, ".txt") && check_file_exists(guidefn);
+  #endif
+
   set_supercard_mode(MAPPED_SDRAM, true, false);
 
   // Copy the font pack first, using memmove to handle collisions properly.
@@ -167,11 +175,9 @@ void load_ingame_menu(
 
   memcpy32(igm->statefile_pattern, statefn, sizeof(igm->statefile_pattern));
 
-  // Guide reader: a text file next to the ROM, with the same name.
   memset32(igm->guide_path, 0, sizeof(igm->guide_path));
   #ifdef IGM_GUIDE
-  char guidefn[MAX_FN_LEN];
-  if (path_join_ext(guidefn, "", romfn, ".txt") && check_file_exists(guidefn))
+  if (has_guide)
     memcpy32(igm->guide_path, guidefn, sizeof(igm->guide_path));
   #endif
 
