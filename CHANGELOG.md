@@ -12,6 +12,17 @@ for Windows, macOS and Linux.
 - **Guide reader removed.** It froze the in-game menu on the cart (seen with
   Pokemon Emerald), so the firmware is back to v0.21-carousel.3's in-game
   menu; only the patch code (opcode 5) fix stays.
+- **Cover maker 1.4.0: more cheats, and why not.**
+  - Each GBA game shows where its cheats came from or why it has none (the
+    window's new Cheats column, or the command line).
+  - libretro cheat files are matched like cover names (case, punctuation,
+    "The", GoodTools region letters like "(U)"); files without a region are
+    used for games with a single release.
+  - `--cheats <folder>` / "Own cheats": your own RetroArch or SuperFW `.cht`
+    files, named like the ROM, the game or `<code>-<version>`, used first.
+  - ROMs that only share a game's code, but are bigger and named otherwise
+    (hacks like Pokemon Unbound), get no cheats: the game's would write to
+    the wrong addresses.
 
 ## v0.21-carousel.4
 
