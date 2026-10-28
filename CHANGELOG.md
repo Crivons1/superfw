@@ -7,6 +7,21 @@ by their commit. Every release has the firmware for the three boards
 (`superfw-sd.fw`, `superfw-lite.fw`, `superfw-chis.fw`) and the cover maker
 for Windows, macOS and Linux.
 
+## Unreleased
+
+- **Upstream (up to 4366954):** the author's own cheat fixes (same patch code
+  reading as ours, more checks), strcpy overflow fixes, settings checks, and a
+  browser that sorts once and filters hidden files (the hidden attribute or a
+  name starting with ".") separately. Our cheat loader changes are replaced
+  by his: a line over 512 bytes now rejects the file, cheats can have up to 36
+  codes.
+- **Fix (upstream bug): "Recent" and "Hide hidden" were reset after every
+  boot.** The new settings check read their saved `1` as out of range.
+- **Carousel limits:** up to 3072 games and 96 KiB of paths (were 4096 and
+  128 KiB), to make room for the browser's new filter list.
+- **Cover maker:** converted cheats follow the new loader rules (lines up to
+  512 bytes, titles cut at 250 bytes, patch codes up to 30 data codes).
+
 ## v0.21-carousel.5
 
 Same upstream base as v0.21-carousel.1. Cover maker 1.4.0. Replaces
