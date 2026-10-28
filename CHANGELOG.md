@@ -9,7 +9,7 @@ for Windows, macOS and Linux.
 
 ## Unreleased
 
-- **Upstream (up to 4366954):** the author's own cheat fixes (same patch code
+- **Upstream v0.22 (4701c4e):** the author's own cheat fixes (same patch code
   reading as ours, more checks), strcpy overflow fixes, settings checks, and a
   browser that sorts once and filters hidden files (the hidden attribute or a
   name starting with ".") separately. Our cheat loader changes are replaced
