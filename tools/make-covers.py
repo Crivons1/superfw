@@ -47,7 +47,7 @@ try:
 except ImportError:
   sys.exit("Pillow is required: pip install pillow")
 
-VERSION = "1.4.0"            # Of the tool (shown in the window and --version)
+VERSION = "1.4.1"            # Of the tool (shown in the window and --version)
 
 COVER_MAGIC = 0x56434653
 COVER_VERSION = 2

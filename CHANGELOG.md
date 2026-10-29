@@ -19,7 +19,7 @@ for Windows, macOS and Linux.
   boot.** The new settings check read their saved `1` as out of range.
 - **Carousel limits:** up to 3072 games and 96 KiB of paths (were 4096 and
   128 KiB), to make room for the browser's new filter list.
-- **Cover maker:** converted cheats follow the new loader rules (lines up to
+- **Cover maker 1.4.1:** converted cheats follow the new loader rules (lines up to
   512 bytes, titles cut at 250 bytes, patch codes up to 30 data codes).
 
 ## v0.21-carousel.5
