@@ -20,6 +20,9 @@ for Windows, macOS and Linux.
   too, 49b3284).
 - **"Back to menu (skip save)"** shows an error instead of rebooting when the
   pending save cannot be cancelled (upstream f6c2c33).
+- **FatFS is upstream's again:** the change for short Chinese names (#84,
+  rejected upstream) is removed. Such names show as "?" again; renaming them
+  fixes them for good (see the README's Limits).
 - **Carousel limits:** up to 3072 games and 96 KiB of paths (were 4096 and
   128 KiB), to make room for the browser's new filter list.
 - **Cover maker 1.4.1:** converted cheats follow the new loader rules (lines up to
