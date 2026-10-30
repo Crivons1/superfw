@@ -9,14 +9,17 @@ for Windows, macOS and Linux.
 
 ## Unreleased
 
-- **Upstream v0.22 (4701c4e):** the author's own cheat fixes (same patch code
+- **Upstream v0.22 and two fixes after it (f6c2c33):** the author's own cheat fixes (same patch code
   reading as ours, more checks), strcpy overflow fixes, settings checks, and a
   browser that sorts once and filters hidden files (the hidden attribute or a
   name starting with ".") separately. Our cheat loader changes are replaced
   by his: a line over 512 bytes now rejects the file, cheats can have up to 36
   codes.
-- **Fix (upstream bug): "Recent" and "Hide hidden" were reset after every
-  boot.** The new settings check read their saved `1` as out of range.
+- **Fix: "Recent" and "Hide hidden" were reset after every boot** in upstream
+  v0.22 (its settings check read the saved `1` as out of range; fixed upstream
+  too, 49b3284).
+- **"Back to menu (skip save)"** shows an error instead of rebooting when the
+  pending save cannot be cancelled (upstream f6c2c33).
 - **Carousel limits:** up to 3072 games and 96 KiB of paths (were 4096 and
   128 KiB), to make room for the browser's new filter list.
 - **Cover maker 1.4.1:** converted cheats follow the new loader rules (lines up to
