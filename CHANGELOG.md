@@ -7,7 +7,10 @@ by their commit. Every release has the firmware for the three boards
 (`superfw-sd.fw`, `superfw-lite.fw`, `superfw-chis.fw`) and the cover maker
 for Windows, macOS and Linux.
 
-## Unreleased
+## v0.22-carousel.1
+
+Based on upstream `master` at f6c2c33 (v0.22 plus two fixes after it).
+Cover maker 1.4.1.
 
 - **Upstream v0.22 and two fixes after it (f6c2c33):** the author's own cheat fixes (same patch code
   reading as ours, more checks), strcpy overflow fixes, settings checks, and a
