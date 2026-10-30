@@ -337,6 +337,13 @@ constraints:
    mGBA and VBA-M.
  - Carousel: up to 3072 games and 96 KiB of paths (about 2000 games with long
    names), in the browsed folder and up to 7 levels of subfolders below it.
+ - Short Chinese or Japanese names (issue #84): a Chinese or Japanese Windows
+   saves a name of up to 4 such characters (8 bytes in its code page) as a
+   short 8.3 name only, without the long name every other name gets. SuperFW
+   can open those folders and files, but shows their names as symbols:
+   showing them needs the PC's code page table, too big for the firmware.
+   Rename them to 5 or more characters, or add a letter (`宝可梦` ->
+   `宝可梦A`): Windows then saves a long name and they show normally.
 
 Development notes
 -----------------
