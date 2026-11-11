@@ -7,6 +7,16 @@ by their commit. Every release has the firmware for the three boards
 (`superfw-sd.fw`, `superfw-lite.fw`, `superfw-chis.fw`) and the cover maker
 for Windows, macOS and Linux.
 
+## Unreleased
+
+- **Upstream changes after v0.22 (dabbf49):** cheat fixes (key codes,
+  greater/less than compares), faster firmware unpacking and updates, an SD
+  read fix for very fast cards, patching works for games over 8 MiB, and a
+  smaller patch database (format 2: a database file loaded from the SD card
+  must be the new format).
+- The patch database lookup still checks that it stays inside the database
+  area, now for the new format (a damaged database file on the SD card).
+
 ## v0.22-carousel.1
 
 Based on upstream `master` at f6c2c33 (v0.22 plus two fixes after it).
