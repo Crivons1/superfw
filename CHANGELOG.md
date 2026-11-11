@@ -7,7 +7,9 @@ by their commit. Every release has the firmware for the three boards
 (`superfw-sd.fw`, `superfw-lite.fw`, `superfw-chis.fw`) and the cover maker
 for Windows, macOS and Linux.
 
-## Unreleased
+## v0.22-carousel.2
+
+Based on upstream `master` at dabbf49. Cover maker 1.4.1 (unchanged).
 
 - **Upstream changes after v0.22 (dabbf49):** cheat fixes (key codes,
   greater/less than compares), faster firmware unpacking and updates, an SD
